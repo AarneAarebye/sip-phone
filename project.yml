@@ -1,0 +1,34 @@
+name: FritzPhone
+options:
+  bundleIdPrefix: com.aarneaarebye
+  deploymentTarget: { macOS: "14.0" }
+settings:
+  base:
+    DEVELOPMENT_TEAM: LKF7C4WS72
+    SWIFT_VERSION: "5.9"
+packages:
+  PhoneKit: { path: Packages/PhoneKit }
+targets:
+  FritzPhone:
+    type: application
+    platform: macOS
+    sources: [App]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.fritzphone
+    dependencies:
+      - package: PhoneKit
+        product: PhoneCore
+      - package: PhoneKit
+        product: FritzTR064
+    info:
+      path: App/Info.plist
+      properties:
+        LSUIElement: true
+        NSMicrophoneUsageDescription: "Needed to make phone calls."
+    entitlements:
+      path: App/FritzPhone.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.device.audio-input: true
