@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root><timestamp>1700000000</timestamp>
+<Call><Id>3</Id><Type>1</Type><Caller>030 1234567</Caller><Called>9876543</Called><CalledNumber>9876543</CalledNumber><Name>Erika Mustermann</Name><Numbertype>sip</Numbertype><Device>Telefon</Device><Port>10</Port><Date>11.11.26 10:15</Date><Duration>0:12</Duration><Count></Count><Path></Path></Call>
+<Call><Id>2</Id><Type>2</Type><Caller>0171 5551234</Caller><Called>9876543</Called><Name></Name><Numbertype>sip</Numbertype><Device></Device><Port>10</Port><Date>10.11.26 18:02</Date><Duration>0:00</Duration></Call>
+<Call><Id>1</Id><Type>3</Type><Caller>9876543</Caller><Called>089 998877</Called><Name>Max Beispiel</Name><Numbertype>sip</Numbertype><Device>Telefon</Device><Port>10</Port><Date>09.11.26 09:30</Date><Duration>1:05</Duration></Call>
+</root>
