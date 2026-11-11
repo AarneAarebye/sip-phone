@@ -11,6 +11,7 @@ let package = Package(
     targets: [
         .target(name: "PhoneCore"),
         .target(name: "FritzTR064", dependencies: ["PhoneCore"]),
+        .executableTarget(name: "fritzdump", dependencies: ["FritzTR064", "PhoneCore"]),
         .testTarget(name: "PhoneCoreTests", dependencies: ["PhoneCore"]),
         .testTarget(name: "FritzTR064Tests", dependencies: ["FritzTR064", "PhoneCore"],
                     resources: [.copy("Fixtures")]),
