@@ -7,12 +7,16 @@ public enum SIPEvent: Equatable, Sendable {
     case incomingCall(id: Int, remote: String)
     case callState(id: Int, CallState)
 }
-public struct SIPConfig: Equatable, Sendable {
+public struct SIPConfig: Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
     public var host: String, user: String, password: String
     public init(host: String, user: String, password: String) { self.host = host; self.user = user; self.password = password }
+    public var description: String { "SIPConfig(host: \(host), user: \(user), password: <redacted>)" }
+    public var debugDescription: String { description }
 }
 public enum SIPError: Error, Equatable { case authFailed, timeout, failed(String) }
 
+/// `events` is a single long-lived stream owned by the engine; AppCore starts consuming it once, in `start()`.
+/// After `AppCore.shutdown()` the stream is not re-iterated: restarting means a new engine and a new AppCore.
 @MainActor public protocol SIPEngine: AnyObject {
     var events: AsyncStream<SIPEvent> { get }
     func register(_ config: SIPConfig) async throws
