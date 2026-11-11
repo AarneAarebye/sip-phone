@@ -19,7 +19,7 @@
 - `SIPEngine`, `FritzTR064` and `VPNManager` sit behind protocols; the UI never talks to PJSIP or the network directly.
 - While on AC power and the app runs, hold an `IOPMAssertion` preventing idle system sleep (setting can turn it off); on battery release it. A sleeping Mac cannot ring; missed calls appear in the call list after wake.
 - v1 scope: dial, receive (notification with caller name, Answer/Decline), searchable read-only phone book, call history, menu bar mode, mute and DTMF, automatic VPN, launch at login. **Out:** phone book editing, hold, video, multiple accounts, push wake-ups.
-- Plan-level decisions (not in the spec): macOS 14.0 deployment target; PJSIP built for arm64 only; XcodeGen generates the Xcode project; HTTP digest authentication is handled by `URLSession`'s built-in challenge handling (no hand-written digest code).
+- Plan-level decisions (not in the spec): macOS 14.0 deployment target (to be re-checked against the user's Intel iMac model); the app, the extension, PJSIP and the WireGuard bridge are built universal (arm64 + x86_64) because it must run on Apple Silicon and Intel Macs; XcodeGen generates the Xcode project; HTTP digest authentication is handled by `URLSession`'s built-in challenge handling (no hand-written digest code).
 - Every commit message ends with the line `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
 - Tests: `cd Packages/PhoneKit && swift test`. App build: `xcodegen && xcodebuild -scheme FritzPhone -destination 'platform=macOS' build`.
 
@@ -1737,13 +1737,13 @@ git add -A && git commit -m "feat: menu bar shell with contacts, history and set
 - Modify: `Packages/PhoneKit/Package.swift`
 
 **Interfaces:**
-- Produces: `Packages/PhoneKit/Frameworks/PJSIP.xcframework` (static, arm64, headers merged); SPM targets `PJSIP` (binary) and `PJBridge` (ObjC++); `+[PJBridge version]` returning the PJSIP version string.
+- Produces: `Packages/PhoneKit/Frameworks/PJSIP.xcframework` (static, universal arm64 + x86_64, headers merged); SPM targets `PJSIP` (binary) and `PJBridge` (ObjC++); `+[PJBridge version]` returning the PJSIP version string.
 
 - [ ] **Step 1: Write `scripts/build-pjsip.sh`**
 
 ```bash
 #!/bin/bash
-# Builds PJSIP (arm64, no video, no TLS) into Packages/PhoneKit/Frameworks/PJSIP.xcframework
+# Builds PJSIP (universal arm64 + x86_64, no video, no TLS) into Packages/PhoneKit/Frameworks/PJSIP.xcframework
 set -euo pipefail
 VERSION=2.15
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -1751,28 +1751,32 @@ WORK="$ROOT/build/pjsip"
 OUT="$ROOT/Packages/PhoneKit/Frameworks/PJSIP.xcframework"
 mkdir -p "$WORK"; cd "$WORK"
 
-if [ ! -d "pjproject-$VERSION" ]; then
+if [ ! -f pj.tgz ]; then
   curl -fL -o pj.tgz "https://github.com/pjsip/pjproject/archive/refs/tags/$VERSION.tar.gz"
-  tar xzf pj.tgz
 fi
-cd "pjproject-$VERSION"
 
-cat > pjlib/include/pj/config_site.h <<'EOF'
-#define PJ_HAS_IPV6 1
-#define PJMEDIA_HAS_VIDEO 0
-EOF
+build_arch() {   # $1 = arm64 | x86_64 ; leaves $WORK/libpjsip-$1.a
+  local ARCH="$1" SRC="$WORK/src-$1"
+  rm -rf "$SRC"; mkdir -p "$SRC"; tar xzf "$WORK/pj.tgz" -C "$SRC" --strip-components=1
+  cd "$SRC"
+  printf '#define PJ_HAS_IPV6 1\n#define PJMEDIA_HAS_VIDEO 0\n' > pjlib/include/pj/config_site.h
+  export CFLAGS="-arch $ARCH -mmacosx-version-min=14.0" LDFLAGS="-arch $ARCH"
+  # cross-compiling for the other architecture needs --host so configure does not try to run test binaries
+  local HOST=""; [ "$ARCH" != "$(uname -m)" ] && HOST="--host=$ARCH-apple-darwin"
+  ./configure $HOST --disable-video --disable-ssl --disable-libyuv --disable-sdl --disable-ffmpeg \
+              --disable-openh264 --disable-vpx --disable-opencore-amr --disable-bcg729 --disable-darwin-ssl
+  make dep && make -j"$(sysctl -n hw.ncpu)"
+  libtool -static -o "$WORK/libpjsip-$ARCH.a" $(find . -path '*/lib/*.a')
+  cd "$WORK"
+}
+build_arch arm64
+build_arch x86_64
 
-export CFLAGS="-arch arm64 -mmacosx-version-min=14.0" LDFLAGS="-arch arm64"
-./configure --disable-video --disable-ssl --disable-libyuv --disable-sdl --disable-ffmpeg \
-            --disable-openh264 --disable-vpx --disable-opencore-amr --disable-bcg729 --disable-darwin-ssl
-make dep && make clean && make -j"$(sysctl -n hw.ncpu)"
-
-# One merged static library
-libtool -static -o "$WORK/libpjsip-all.a" $(find . -path '*/lib/*.a' -not -path '*/third_party/*/lib/*.a' -o -path './third_party/lib/*.a')
-
-# One merged header tree
+# Universal static library (both archs in one file) and one merged header tree
+lipo -create "$WORK/libpjsip-arm64.a" "$WORK/libpjsip-x86_64.a" -output "$WORK/libpjsip-all.a"
+lipo -info "$WORK/libpjsip-all.a"
 rm -rf "$WORK/headers"; mkdir -p "$WORK/headers"
-for d in pjlib pjlib-util pjnath pjmedia pjsip; do cp -R "$d/include/." "$WORK/headers/"; done
+for d in pjlib pjlib-util pjnath pjmedia pjsip; do cp -R "$WORK/src-arm64/$d/include/." "$WORK/headers/"; done
 
 rm -rf "$OUT"; mkdir -p "$(dirname "$OUT")"
 xcodebuild -create-xcframework -library "$WORK/libpjsip-all.a" -headers "$WORK/headers" -output "$OUT"
@@ -1782,7 +1786,7 @@ echo "Built $OUT"
 - [ ] **Step 2: Run the build**
 
 Run: `chmod +x scripts/build-pjsip.sh && scripts/build-pjsip.sh 2>&1 | tail -15`
-Expected: `Built …/PJSIP.xcframework`. If `configure` rejects a `--disable-*` flag in this PJSIP version, remove that flag (run `./configure --help` in the source dir to see valid ones). If the merged `find` picks up duplicate third-party libs and `libtool` warns about duplicate symbols, restrict the `find` to the `pjlib`, `pjlib-util`, `pjnath`, `pjmedia`, `pjsip` and `third_party` lib directories explicitly. Also bump `VERSION` to the newest tag if 2.15 no longer exists.
+Expected: `lipo -info` lists `x86_64 arm64`, then `Built …/PJSIP.xcframework`. If `configure` rejects a `--disable-*` flag in this PJSIP version, remove that flag (run `./configure --help` in the source dir to see valid ones). If the merged `find` picks up duplicate third-party libs and `libtool` warns about duplicate symbols, restrict the `find` to the `pjlib`, `pjlib-util`, `pjnath`, `pjmedia`, `pjsip` and `third_party` lib directories explicitly. Also bump `VERSION` to the newest tag if 2.15 no longer exists.
 
 - [ ] **Step 3: Add the targets to `Package.swift`**
 
