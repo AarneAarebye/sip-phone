@@ -1,5 +1,7 @@
 # SIP Phone
 
+Using the app? See [docs/SETUP.md](docs/SETUP.md).
+
 A macOS menu bar SIP phone for a FRITZ!Box. It registers as an IP telephone on the FRITZ!Box, shows incoming calls as notifications with the name from the FRITZ!Box phone books, lets you place calls, and shows the call history. When you are away from home it can reach the FRITZ!Box through a full-tunnel WireGuard VPN.
 
 Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon and Intel Macs). Bundle ids: `com.aarneaarebye.sipphone` (app) and `com.aarneaarebye.sipphone.PacketTunnel` (VPN system extension). Team ID: `LKF7C4WS72`.
