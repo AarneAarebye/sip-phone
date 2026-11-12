@@ -71,7 +71,7 @@ Klicken Sie auf das Menüleistensymbol, dann auf „Settings…“. Füllen Sie 
 | **Keep Mac awake while on power** | Standardmäßig an. Verhindert den Ruhezustand des Macs im Netzbetrieb, damit er klingeln kann. |
 | **Launch at login** | Startet die App bei der Anmeldung. macOS bittet Sie möglicherweise, das in den Systemeinstellungen unter Allgemein > Anmeldeobjekte & Erweiterungen zu bestätigen (System Settings > General > Login Items; Bezeichnungen können je nach macOS-Version abweichen). |
 | **Phone books** | Ein Schalter pro FRITZ!Box-Telefonbuch, standardmäßig alle an; neue Telefonbücher starten eingeschaltet. Ein ausgeschaltetes Telefonbuch ist unter Contacts ausgeblendet und wird nicht für die Anzeige von Anrufernamen verwendet. Wird mit Save übernommen. Die in History angezeigten Namen stammen aus der Anrufliste der FRITZ!Box selbst; das Ausschalten eines Telefonbuchs in der App ändert sie daher nicht. Zeigt „Not loaded yet“, bis zum ersten erfolgreichen Laden. |
-| **VPN (WireGuard)** | Nur für die Nutzung unterwegs, siehe Abschnitt 7. |
+| **VPN (WireGuard)** | Nur für die Nutzung unterwegs, siehe Abschnitt 7. Lassen Sie „Only send home-network traffic through the VPN (recommended)“ eingeschaltet und „Home network (CIDR)“ leer, außer Ihr Heimnetz ist nicht das `/24`-Netz der WireGuard-Address. |
 | **Keypad tone method** (Diagnostics) | Auf „In-band audio tones (recommended)“ belassen. |
 
 Der Bereich „Diagnostics“ enthält außerdem:
@@ -143,7 +143,15 @@ Um das Telefon unterwegs zu nutzen, verbindet sich die App über ein WireGuard-V
 3. Öffnen Sie die Datei in einem Texteditor, kopieren Sie den gesamten Inhalt und fügen Sie ihn in den Settings unter „VPN (WireGuard)“ ein. Klicken Sie auf „Save“. Die Konfiguration wird im Schlüsselbund gespeichert.
 4. Die App muss sich in `/Applications` befinden. Wenn das VPN zum ersten Mal gebraucht wird, blockiert macOS die Netzwerkerweiterung, bis Sie sie in den Systemeinstellungen unter Allgemein > Anmeldeobjekte & Erweiterungen > Netzwerkerweiterungen genehmigen (System Settings > General > Login Items & Extensions > Network Extensions; Bezeichnungen können je nach macOS-Version abweichen). Möglicherweise werden Sie auch gebeten, eine VPN-Konfiguration zu erlauben.
 
-Die App startet das VPN nur von selbst, wenn Ihre FRITZ!Box nicht erreichbar ist, und beendet es, wenn Sie die App beenden.
+Die App startet und beendet das VPN selbst:
+
+- **Unterwegs**: Ist Ihre FRITZ!Box nicht erreichbar, startet die App das VPN.
+- **Wieder zu Hause**: Antwortet die FRITZ!Box direkt über WLAN oder Ethernet (nicht über das VPN), beendet die App das VPN, meist innerhalb von etwa 10 Sekunden und zeigt „VPN off – you are home“. Sie prüft zweimal im Abstand von 3 Sekunden, damit ein kurzer WLAN-Wechsel das VPN nicht beendet. Während eines Gesprächs beendet sie das VPN nie; sie wartet, bis Sie auflegen.
+- **Beenden**: Wenn Sie die App beenden, wird auch das VPN beendet.
+
+Mit „Only send home-network traffic through the VPN (recommended)“ (voreingestellt) läuft nur der Verkehr für Ihr Heimnetz durch das VPN, zum Beispiel `192.168.65.0/24`. Alles andere (Web, E-Mail, Updates) nutzt weiter Ihre normale Verbindung, und Abfragen für `fritz.box` gehen an die FRITZ!Box. Als Heimnetz gilt das `/24`-Netz der WireGuard-`Address`. Ist Ihr Heimnetz ein anderes, tragen Sie es unter „Home network (CIDR)“ ein, zum Beispiel `192.168.65.0/24`. Änderungen gelten ab dem nächsten Start des VPN. Ist der Schalter aus, nutzt das VPN die Routen aus der `.conf`-Datei (`AllowedIPs = 0.0.0.0/0` leitet den gesamten Verkehr über Ihr Zuhause).
+
+Der VPN-Eintrag „FRITZ!Box“ in den Systemeinstellungen unter VPN lässt sich nicht von Hand starten: Er meldet „Start the VPN from SIP Phone“. Das ist so gewollt. Die Konfiguration bleibt im Schlüsselbund der App, und die App startet das VPN bei Bedarf.
 
 Einschränkungen:
 
@@ -164,6 +172,7 @@ Einschränkungen:
 | Das Banner zeigt nur „Notification“ | Stellen Sie für SIP Phone in den Systemeinstellungen unter Mitteilungen „Vorschau anzeigen“ auf „Immer“ (Show Previews: Always). |
 | Das Settings-Fenster erscheint nicht | Das Menüleistensymbol ist möglicherweise verdeckt (siehe Abschnitt 2). |
 | Die App ist nicht in der Menüleiste | Sie ist möglicherweise hinter der Notch oder im Überlaufbereich Ihres Menüleisten-Managers versteckt. Schauen Sie dort nach, oder beenden Sie die App und starten Sie sie neu. |
+| „Start the VPN from SIP Phone“ in den Systemeinstellungen unter VPN | So gewollt: Nur die App kann das VPN starten. Lassen Sie es aus; die App startet es, wenn Sie unterwegs sind (Abschnitt 7). |
 
 ## 9. Datenschutz und Sicherheit
 

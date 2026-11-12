@@ -2,7 +2,7 @@
 
 Using the app? See [docs/SETUP.md](docs/SETUP.md). Deutsche Anleitung: [docs/SETUP.de.md](docs/SETUP.de.md).
 
-A macOS menu bar SIP phone for a FRITZ!Box. It registers as an IP telephone on the FRITZ!Box, shows incoming calls as notifications with the name from the FRITZ!Box phone books, lets you place calls, and shows the call history. When you are away from home it can reach the FRITZ!Box through a full-tunnel WireGuard VPN.
+A macOS menu bar SIP phone for a FRITZ!Box. It registers as an IP telephone on the FRITZ!Box, shows incoming calls as notifications with the name from the FRITZ!Box phone books, lets you place calls, and shows the call history. When you are away from home it reaches the FRITZ!Box through a WireGuard VPN that carries only the home network's traffic (split tunnel).
 
 Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon and Intel Macs). Bundle ids: `com.aarneaarebye.sipphone` (app) and `com.aarneaarebye.sipphone.PacketTunnel` (VPN system extension). Team ID: `LKF7C4WS72`.
 
@@ -13,7 +13,7 @@ Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon
 - Phone books can be switched on or off individually in Settings (off: hidden in Contacts and not used for caller names); the Contacts tab has a phone book filter.
 - Call history from the FRITZ!Box call list (TR-064), including missed calls and fax calls.
 - Contacts cached locally; cached contacts are used when the FRITZ!Box cannot be reached.
-- WireGuard VPN for use away from home. At home the app does not start it.
+- WireGuard VPN for use away from home: started automatically when the FRITZ!Box cannot be reached, stopped automatically when the Mac is back home. By default only home-network traffic uses it.
 - Keypad tones are sent as in-band audio by default, the only method that reaches the phone on the FRITZ!Box 6591 Cable; RFC 2833 and SIP INFO can be selected in Settings > Diagnostics.
 - Optional keep-awake while on AC power, and launch at login (both in Settings).
 
@@ -53,7 +53,7 @@ The app icon lives in `App/Assets.xcassets/AppIcon.appiconset` (all macOS sizes,
 
 ## VPN (system extension)
 
-The VPN is a full-tunnel WireGuard connection implemented as a macOS system extension, which is what Developer ID distribution requires. On first start macOS asks you to approve the extension in System Settings > General > Login Items & Extensions > Network Extensions. The WireGuard configuration is pasted into Settings and stored in the Keychain; the app hands it to the extension when the tunnel starts, it is never stored in the VPN settings. Calls away from home need the VPN. Quitting the app stops it.
+The VPN is a WireGuard connection implemented as a macOS system extension, which is what Developer ID distribution requires. By default it is a split tunnel: the app replaces the config's AllowedIPs with the home network (the /24 of the WireGuard Address, or the "Home network (CIDR)" setting) and the tunnel's DNS answers only for `fritz.box`, so the Mac's other traffic keeps its normal route. The app stops its own tunnel when the FRITZ!Box answers over Wi-Fi/Ethernet without the VPN (two checks 3 s apart, every 20 s and after network changes; never during a call). On first start macOS asks you to approve the extension in System Settings > General > Login Items & Extensions > Network Extensions. The WireGuard configuration is pasted into Settings and stored in the Keychain; the app hands it to the extension when the tunnel starts, it is never stored in the VPN settings. Calls away from home need the VPN. Quitting the app stops it. Starting the VPN entry in macOS System Settings by hand fails with "Start the VPN from SIP Phone": only the app can hand over the configuration.
 
 Status: the system extension activation has not yet been exercised on a real system, because that needs the provisioning profiles above.
 

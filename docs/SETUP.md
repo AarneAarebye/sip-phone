@@ -69,7 +69,7 @@ Click the menu bar icon, then Settings…. Fill in the fields below, then click 
 | **Keep Mac awake while on power** | On by default. Keeps the Mac from idle sleep on mains power so it can ring. |
 | **Launch at login** | Starts the app when you sign in. macOS may ask you to approve it in System Settings > General > Login Items. |
 | **Phone books** | One switch per FRITZ!Box phone book, all on by default; new books start on. A switched-off book is hidden in Contacts and not used to show caller names. Applied with Save. Names shown in History come from the FRITZ!Box's own call list, so switching a phone book off in the app does not change them. Shows "Not loaded yet" until the first successful load. |
-| **VPN (WireGuard)** | Only for use away from home, see section 7. |
+| **VPN (WireGuard)** | Only for use away from home, see section 7. Leave "Only send home-network traffic through the VPN (recommended)" on and "Home network (CIDR)" empty unless your home network is not the `/24` of the WireGuard Address. |
 | **Keypad tone method** (Diagnostics) | Leave on "In-band audio tones (recommended)". |
 
 The Diagnostics section also has:
@@ -139,7 +139,15 @@ To use the phone when you are away, the app connects to your FRITZ!Box through a
 3. Open the file in a text editor, copy all of it, and paste it into Settings under VPN (WireGuard). Click Save. The configuration is stored in the Keychain.
 4. The app must be in `/Applications`. The first time the VPN is needed, macOS blocks the network extension until you approve it in System Settings > General > Login Items & Extensions > Network Extensions. You may also be asked to allow a VPN configuration.
 
-The app starts the VPN by itself only when your FRITZ!Box cannot be reached, and stops it when you quit the app.
+The app starts and stops the VPN by itself:
+
+- **Away**: when your FRITZ!Box cannot be reached, the app starts the VPN.
+- **Back home**: when the FRITZ!Box answers directly over Wi-Fi or Ethernet (not through the VPN), the app stops the VPN, usually within about 10 seconds and shows "VPN off – you are home". It checks twice, 3 seconds apart, so a short Wi-Fi switch does not stop it. It never stops the VPN during a call; it waits until you hang up.
+- **Quit**: quitting the app stops the VPN.
+
+With "Only send home-network traffic through the VPN (recommended)" on (the default), only traffic for your home network goes through the VPN, for example `192.168.65.0/24`. Everything else (web, mail, updates) keeps your normal connection, and lookups of `fritz.box` go to the FRITZ!Box. The home network is the `/24` network of the WireGuard `Address`. If your home network is different, enter it under "Home network (CIDR)", for example `192.168.65.0/24`. Changes take effect the next time the VPN starts. With the switch off, the VPN uses the routes from the `.conf` file (`AllowedIPs = 0.0.0.0/0` sends all traffic through your home).
+
+The VPN entry "FRITZ!Box" in macOS System Settings > VPN cannot be started by hand: it fails with "Start the VPN from SIP Phone". This is on purpose. The configuration stays in the app's Keychain, and the app starts the VPN when needed.
 
 Limits:
 
@@ -160,6 +168,7 @@ Limits:
 | Banner only says "Notification" | Set Show Previews to Always for SIP Phone in System Settings > Notifications. |
 | Settings window does not appear | The menu bar icon may be hidden (see section 2). |
 | App is not in the menu bar | It may be hidden behind the notch or in your menu bar manager's overflow. Check there, or quit and start it again. |
+| "Start the VPN from SIP Phone" in System Settings > VPN | Expected: the VPN can only be started by the app. Leave it off; the app starts it when you are away (section 7). |
 
 ## 9. Privacy and security
 
