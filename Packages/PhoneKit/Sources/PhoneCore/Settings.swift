@@ -32,10 +32,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var dtmfMethod: DTMFMethod = .inband
     /// Ids of FRITZ!Box phone books switched off (hidden in Contacts, not used for caller names). New books are on.
     public var disabledPhoneBooks: [String] = []
+    /// Only traffic for the home network goes through the VPN (the Mac's other traffic keeps its normal route).
+    public var splitTunnel = true
+    /// Home network as a CIDR (e.g. 192.168.65.0/24); empty = derived from the WireGuard Address (its /24).
+    public var homeNetworkCIDR = ""
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case disabledPhoneBooks, fritzHost, sipUser, tr064User, countryCode, areaCode, keepAwakeOnPower, launchAtLogin, dtmfMethod
+        case splitTunnel, homeNetworkCIDR
     }
 
     /// Tolerant: a missing (older stored settings) or unknown value (including the removed "both") keeps the default for that field only.
@@ -54,6 +59,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         launchAtLogin = value(.launchAtLogin, d.launchAtLogin)
         dtmfMethod = value(.dtmfMethod, d.dtmfMethod)
         disabledPhoneBooks = value(.disabledPhoneBooks, d.disabledPhoneBooks)
+        splitTunnel = value(.splitTunnel, d.splitTunnel)
+        homeNetworkCIDR = value(.homeNetworkCIDR, d.homeNetworkCIDR)
     }
 }
 

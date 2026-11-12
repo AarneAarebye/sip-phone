@@ -55,10 +55,18 @@ public enum SIPError: Error, Equatable { case authFailed, timeout, failed(String
     func setMuted(_ muted: Bool)
     /// Sends with `method` and returns its outcome.
     func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome]
+    /// The Mac's network path changed (VPN up/down, Wi-Fi switch, wake): rebind the SIP transport so the next
+    /// registration uses the new local address. AppCore calls it only while no call is live.
+    func networkChanged()
 }
 @MainActor public protocol VPNControlling: AnyObject {
     func connect() async throws
     func disconnect() async
 }
-public protocol Reachability: Sendable { func isFritzBoxReachable() async -> Bool }
+public protocol Reachability: Sendable {
+    /// The FRITZ!Box answers over whatever route the system picks (including the VPN).
+    func isFritzBoxReachable() async -> Bool
+    /// "Am I home?": the FRITZ!Box answers over a physical interface (Wi-Fi/Ethernet), never through a VPN.
+    func isFritzBoxReachableDirectly() async -> Bool
+}
 @MainActor public protocol PowerAssertionControlling: AnyObject { func setPreventSleep(_ on: Bool) }

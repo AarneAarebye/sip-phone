@@ -6,6 +6,7 @@ import Network
 import Security
 import PhoneCore
 import FritzTR064
+import SystemAdapters
 
 /// Probes the TR-064 TLS port the client uses (no ATS involved).
 ///
@@ -13,13 +14,26 @@ import FritzTR064
 /// leaf certificate's SHA-256 (the pin format of `URLSessionTransport`) must match the stored pin. Another
 /// FRITZ!Box on a visited network then counts as unreachable, so the VPN is started. Without a stored pin the
 /// probe is a plain TCP connect.
+///
+/// The direct variant ("am I home?") additionally prohibits VPN interfaces (see `DirectPath`), so it succeeds
+/// only when the box answers over Wi-Fi/Ethernet, never through our tunnel.
 struct FritzBoxReachability: Reachability {
     let host: @Sendable () -> String
     let pinned: @Sendable () -> String?
 
-    func isFritzBoxReachable() async -> Bool {
+    func isFritzBoxReachable() async -> Bool { await probe(direct: false, via: nil) }
+
+    /// Tries each physical interface (bound to it, VPN types prohibited); true as soon as one reaches the box.
+    func isFritzBoxReachableDirectly() async -> Bool {
+        for interface in await DirectPath.physicalInterfaces() where await probe(direct: true, via: interface) {
+            return true
+        }
+        return false
+    }
+
+    private func probe(direct: Bool, via interface: NWInterface?) async -> Bool {
         let parameters: NWParameters
-        let timeout: TimeInterval
+        var timeout: TimeInterval
         if let pin = pinned(), !pin.isEmpty {
             let tls = NWProtocolTLS.Options()
             // The FRITZ!Box certificate is self-signed: the pin, not the system trust store, decides.
@@ -33,6 +47,10 @@ struct FritzBoxReachability: Reachability {
             timeout = 5
         } else {
             parameters = .tcp
+            timeout = 3
+        }
+        if direct {
+            DirectPath.excludeVPN(parameters, boundTo: interface)
             timeout = 3
         }
         let conn = NWConnection(host: NWEndpoint.Host(host()),

@@ -9,6 +9,20 @@ import os
 public final class AppCore {
     public enum Connection: Equatable { case starting, connectingVPN, offline(String), authFailed, registering, ready, reconnecting }
 
+    /// Timing of the "am I home?" check while the app's own tunnel is up.
+    public struct HomeCheckTiming: Sendable {
+        /// Pause between periodic checks.
+        public var interval: TimeInterval
+        /// Pause between the direct probes of one check.
+        public var confirmDelay: TimeInterval
+        /// Direct probes in a row that must succeed before the tunnel is stopped (hysteresis while switching Wi-Fi).
+        public var confirmations: Int
+        public init(interval: TimeInterval = 20, confirmDelay: TimeInterval = 3, confirmations: Int = 2) {
+            self.interval = interval; self.confirmDelay = confirmDelay; self.confirmations = confirmations
+        }
+    }
+    public static let homeNotice = "VPN off – you are home"
+
     public struct ActiveCall: Equatable {
         public var id: Int
         public var remote: String
@@ -44,6 +58,8 @@ public final class AppCore {
     public private(set) var settings: AppSettings
     /// Telephone-event summary of the most recent call's audio (Settings > Diagnostics); survives the call.
     public private(set) var lastCallMedia: String?
+    /// Short informational status about the VPN (e.g. it was switched off because the Mac is home). Not an error.
+    public private(set) var vpnNotice: String?
 
     @ObservationIgnored private let sip: SIPEngine
     @ObservationIgnored private let phoneBook: PhoneBookService
@@ -54,6 +70,13 @@ public final class AppCore {
     @ObservationIgnored private let sipConfig: () -> SIPConfig?
     @ObservationIgnored private let phoneBookFailureDetail: () -> String?
     @ObservationIgnored private let sleep: @Sendable (TimeInterval) async -> Void
+    @ObservationIgnored private let homeSleep: @Sendable (TimeInterval) async -> Void
+    @ObservationIgnored private let homeTiming: HomeCheckTiming
+    @ObservationIgnored private var homeWatchTask: Task<Void, Never>?
+    @ObservationIgnored private var homeCheckTask: Task<Bool, Never>?
+    @ObservationIgnored private var homeCheckAfterCall = false
+    /// The network path changed since the SIP transport was last rebound (handleIpChange pending).
+    @ObservationIgnored private var pathChanged = false
     @ObservationIgnored private var index = PhoneBookIndex(contacts: [])
     @ObservationIgnored private var startedVPN = false
     @ObservationIgnored private var onAC = false
@@ -72,9 +95,12 @@ public final class AppCore {
                 power: PowerAssertionControlling, cache: ContactCache, settings: AppSettings,
                 sipConfig: @escaping () -> SIPConfig?,
                 phoneBookFailureDetail: @escaping () -> String? = { nil },
-                sleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) {
+                sleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) },
+                homeTiming: HomeCheckTiming = HomeCheckTiming(),
+                homeSleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) {
         self.sip = sip; self.phoneBook = phoneBook; self.vpn = vpn; self.reachability = reachability
         self.power = power; self.cache = cache; self.settings = settings; self.sipConfig = sipConfig; self.sleep = sleep
+        self.homeTiming = homeTiming; self.homeSleep = homeSleep
         self.phoneBookFailureDetail = phoneBookFailureDetail
         contacts = cache.load()   // offline still shows the saved book
         rebuildIndex()
@@ -85,8 +111,13 @@ public final class AppCore {
     /// Returns once the first connect attempt and the first phone-book load are done.
     public func start() async { startEventLoop(); await connect(wake: false); await bookTask?.value }
     public func retry() async { await connect(wake: false) }
+    /// Wake from sleep and debounced network-path changes. With the app's own tunnel up, first checks whether the
+    /// Mac is home (then the tunnel is stopped and the connection re-established without it).
     public func handleWake() async {
+        pathChanged = true
         if deferWhileInCall() { return }
+        homeCheckAfterCall = false
+        if startedVPN, await checkHome() { return }
         cancelReconnect(); await connect(wake: true)
     }
 
@@ -105,6 +136,9 @@ public final class AppCore {
         eventTask?.cancel(); eventTask = nil
         connectTask?.cancel(); connectTask = nil
         cleanupTask?.cancel(); cleanupTask = nil
+        stopHomeWatch()
+        homeCheckTask?.cancel(); homeCheckTask = nil
+        homeCheckAfterCall = false
         bookTask?.cancel()   // clears itself when it finishes
         reRegisterAfterCall = false
         cancelReconnect()
@@ -135,20 +169,24 @@ public final class AppCore {
         if !quiet { connection = .starting }
         func fail(_ msg: String) { if wake || quiet { startReconnect() } else { connection = .offline(msg) } }
 
-        if !(await reachability.isFritzBoxReachable()) {
+        // Never start the VPN at home: a box that answers directly needs no tunnel.
+        if !(await reachability.isFritzBoxReachable()), !(await reachability.isFritzBoxReachableDirectly()) {
             guard !Task.isCancelled else { return }
             if !quiet { connection = .connectingVPN }
             startedVPN = true   // a partially started tunnel must still be torn down
+            startHomeWatch()
             do { try await vpn.connect() }
             catch is CancellationError { return }   // stopped on purpose
             catch { if !Task.isCancelled { fail("VPN: \(error.localizedDescription)") }; return }
             guard !Task.isCancelled else { return }
+            vpnStarted()
             guard await reachability.isFritzBoxReachable() else {
                 if !Task.isCancelled { fail("FRITZ!Box not reachable") }
                 return
             }
         }
         guard !Task.isCancelled else { return }
+        applyNetworkChange()
         guard let cfg = sipConfig() else {
             startPhoneBookRefresh()
             connection = .offline("Not configured – open Settings"); return
@@ -230,7 +268,10 @@ public final class AppCore {
                 scheduleCallCleanup(activeCall?.serial ?? 0)
                 if reRegisterAfterCall {
                     reRegisterAfterCall = false
-                    Task { [weak self] in await self?.handleWake() }
+                    Task { [weak self] in await self?.handleWake() }   // includes a deferred home check
+                } else if homeCheckAfterCall {
+                    homeCheckAfterCall = false
+                    Task { [weak self] in _ = await self?.checkHome() }
                 }
             }
         case .callMedia(let id, let info):
@@ -290,6 +331,7 @@ public final class AppCore {
                 if await self.reachability.isFritzBoxReachable() {
                     guard self.isCurrentReconnect(gen) else { return }
                     if let cfg = self.sipConfig() {
+                        self.applyNetworkChange()
                         do {
                             try await self.sip.register(cfg)
                             guard self.isCurrentReconnect(gen) else { return }
@@ -301,6 +343,12 @@ public final class AppCore {
                             self.connection = .authFailed; self.reconnectTask = nil; return
                         } catch { /* keep retrying */ }
                     }
+                } else if await self.reachability.isFritzBoxReachableDirectly() {
+                    // Home (the box answers directly) but not over the default route, e.g. through a stale tunnel
+                    // of ours: never start a VPN here; stop our own. Re-probe on the next round.
+                    guard self.isCurrentReconnect(gen) else { return }
+                    if self.startedVPN, !self.callIsLive { await self.stopTunnelAtHome() }
+                    guard self.isCurrentReconnect(gen) else { return }
                 } else {
                     // The tunnel may have dropped or gone stale (e.g. the FRITZ!Box WAN IP changed while it
                     // reported "connected"): restart our own tunnel, which resolves the endpoint again, or
@@ -308,7 +356,8 @@ public final class AppCore {
                     if self.startedVPN { await self.vpn.disconnect() }
                     guard self.isCurrentReconnect(gen) else { return }
                     self.startedVPN = true
-                    do { try await self.vpn.connect() }
+                    self.startHomeWatch()
+                    do { try await self.vpn.connect(); self.vpnStarted() }
                     catch is CancellationError { /* stopped on purpose */ }
                     catch {
                         guard self.isCurrentReconnect(gen) else { return }
@@ -321,6 +370,79 @@ public final class AppCore {
         }
     }
     public func waitForReconnect() async { await reconnectTask?.value }
+
+    // MARK: VPN at home
+
+    /// The tunnel came up: the path changed, and any earlier "you are home" notice is stale.
+    private func vpnStarted() { pathChanged = true; vpnNotice = nil }
+
+    /// Rebinds the SIP transport once after a path change, before the next registration. During a live call
+    /// it stays pending and the re-registration is deferred until the call ends.
+    private func applyNetworkChange() {
+        guard pathChanged else { return }
+        if callIsLive { reRegisterAfterCall = true; return }
+        pathChanged = false
+        sip.networkChanged()
+    }
+
+    /// Periodic home check while the app's own tunnel is up (cancelled when the tunnel stops or on shutdown).
+    private func startHomeWatch() {
+        guard homeWatchTask == nil else { return }
+        let interval = homeTiming.interval
+        homeWatchTask = Task { [weak self, homeSleep] in
+            while true {
+                await homeSleep(interval)
+                guard !Task.isCancelled, let self, self.startedVPN else { return }
+                _ = await self.checkHome()
+            }
+        }
+    }
+
+    private func stopHomeWatch() { homeWatchTask?.cancel(); homeWatchTask = nil }
+
+    /// Runs (or joins) one home check. Returns true when it stopped the tunnel (and reconnected without it).
+    /// Deferred during a live call; skipped while a connect attempt is in flight (the next tick retries).
+    @discardableResult
+    private func checkHome() async -> Bool {
+        guard startedVPN else { return false }
+        if callIsLive { homeCheckAfterCall = true; return false }
+        if let t = homeCheckTask { return await t.value }
+        guard connectTask == nil else { return false }
+        let t = Task { [weak self] () -> Bool in
+            guard let self else { return false }
+            let home = await self.confirmHome()
+            self.homeCheckTask = nil
+            guard home, !Task.isCancelled, self.startedVPN else { return false }
+            if self.callIsLive { self.homeCheckAfterCall = true; return false }
+            await self.stopTunnelAtHome()
+            await self.connect(wake: true)   // transport rebind, re-registration, phone book
+            return true
+        }
+        homeCheckTask = t
+        return await t.value
+    }
+
+    /// `confirmations` successful direct probes in a row, `confirmDelay` apart. One failure ends the check
+    /// (flapping while switching networks keeps the tunnel).
+    private func confirmHome() async -> Bool {
+        for i in 0..<max(1, homeTiming.confirmations) {
+            if i > 0 { await homeSleep(homeTiming.confirmDelay) }
+            guard !Task.isCancelled, startedVPN, !callIsLive else { return false }
+            guard await reachability.isFritzBoxReachableDirectly() else { return false }
+        }
+        return !Task.isCancelled
+    }
+
+    private func stopTunnelAtHome() async {
+        stopHomeWatch()
+        startedVPN = false
+        await vpn.disconnect()
+        pathChanged = true
+        vpnNotice = Self.homeNotice
+        if let v = vpnError, lastError == v { lastError = nil }
+        vpnError = nil
+        VPNLog.logger.info("Home network reached directly: VPN stopped")
+    }
 
     // MARK: Calls
 
@@ -377,6 +499,10 @@ public final class AppCore {
     public func updateSettings(_ s: AppSettings) { settings = s; rebuildIndex(); applyPower() }
     public func powerSourceChanged(onAC: Bool) { self.onAC = onAC; applyPower() }
     private func applyPower() { power.setPreventSleep(onAC && settings.keepAwakeOnPower) }
+}
+
+enum VPNLog {
+    static let logger = Logger(subsystem: "com.aarneaarebye.sipphone", category: "vpn")
 }
 
 enum DTMFLog {

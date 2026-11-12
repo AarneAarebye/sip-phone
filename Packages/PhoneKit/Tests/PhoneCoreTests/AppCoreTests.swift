@@ -30,6 +30,8 @@ actor Gate {
     func answer(_ id: Int) { answered.append(id) }
     func hangup(_ id: Int) { hangups.append(id) }
     func setMuted(_ muted: Bool) { muteCalls.append(muted) }
+    var networkChanges = 0
+    func networkChanged() { networkChanges += 1 }
     var dtmfSent: [(digits: String, callId: Int, method: DTMFMethod)] = []
     var dtmfErrors: [DTMFMethod: String] = [:]
     func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome] {
@@ -45,9 +47,14 @@ actor Gate {
 }
 final class FakeReach: Reachability, @unchecked Sendable {
     private var results: [Bool]
-    private(set) var probes = 0
+    /// Direct ("am I home?") probe results; the last one repeats. Default: away.
+    var direct: [Bool] = [false]
+    private(set) var probes = 0, directProbes = 0
     init(_ results: [Bool]) { self.results = results }
     func isFritzBoxReachable() async -> Bool { probes += 1; return results.count > 1 ? results.removeFirst() : (results.first ?? false) }
+    func isFritzBoxReachableDirectly() async -> Bool {
+        directProbes += 1; return direct.count > 1 ? direct.removeFirst() : (direct.first ?? false)
+    }
 }
 @MainActor final class FakePower: PowerAssertionControlling {
     var states: [Bool] = []
