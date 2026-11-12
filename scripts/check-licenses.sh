@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright © 2026 SIP Phone contributors
+# Copyright © 2026 Aarne Aarebye
 # Checks the licence files: LICENSE is the full GPL-3.0 text, THIRD_PARTY_LICENSES.md names every component in
 # scripts/third-party-components.txt, and (given an app path) the built app bundles both files as resources.
 # Usage: scripts/check-licenses.sh [path/to/SipPhone.app]     (bash 3.2 compatible)

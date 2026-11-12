@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright © 2026 SIP Phone contributors
+// Copyright © 2026 Aarne Aarebye
 // Draws the SIP Phone app icon and writes the full macOS AppIcon set.
 //
 //   swift scripts/make-icon.swift App/Assets.xcassets/AppIcon.appiconset

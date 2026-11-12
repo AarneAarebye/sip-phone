@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright © 2026 SIP Phone contributors
+# Copyright © 2026 Aarne Aarebye
 # Safe loader for the notarytool App Store Connect API key folder (default ~/.config/apple-api/).
 # Meant to be sourced by scripts/release.sh and scripts/tests/test-notary-config.sh. It never sources the env file,
 # never prints values from it, and reports only the NAME of the offending field or file in errors.

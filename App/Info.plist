@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Aarne Aarebye</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Needed to make phone calls.</string>
 </dict>

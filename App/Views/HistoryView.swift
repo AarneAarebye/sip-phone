@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright © 2026 SIP Phone contributors
+// Copyright © 2026 Aarne Aarebye
 
 import SwiftUI
 import PhoneCore

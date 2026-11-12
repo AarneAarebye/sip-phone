@@ -64,6 +64,7 @@ targets:
         CFBundleDisplayName: "SIP Phone"
         LSUIElement: true
         NSMicrophoneUsageDescription: "Needed to make phone calls."
+        NSHumanReadableCopyright: "Copyright © 2026 Aarne Aarebye"
 
   PacketTunnel:
     type: system-extension

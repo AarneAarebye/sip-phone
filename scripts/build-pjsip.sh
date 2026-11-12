@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright © 2026 SIP Phone contributors
+# Copyright © 2026 Aarne Aarebye
 # Builds PJSIP (universal arm64 + x86_64, no video, no TLS, no SRTP; audio codecs G.722 and G.711 only)
 # into Packages/PhoneKit/Frameworks/PJSIP.xcframework
 set -euo pipefail

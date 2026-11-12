@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright © 2026 SIP Phone contributors
+// Copyright © 2026 Aarne Aarebye
 
 import SwiftUI
 import AppKit
@@ -7,7 +7,7 @@ import AppKit
 /// Project facts shown in the About window and in Settings.
 enum AppInfo {
     static let repositoryURL = URL(string: "https://github.com/AarneAarebye/sip-phone")!
-    static let copyright = "Copyright © 2026 SIP Phone contributors"
+    static let copyright = "Copyright © 2026 Aarne Aarebye"
     static let licenceNotice = "Licensed under the GNU General Public License v3.0 or later. "
         + "This program comes with ABSOLUTELY NO WARRANTY."
 

@@ -92,7 +92,7 @@ Ideas: check whether CallKit is usable on macOS, an iPhone companion app, a Call
 
 SIP Phone is free software, released under the GNU General Public License v3.0 or later (GPL-3.0-or-later); the full text is in [LICENSE](LICENSE). This program comes with ABSOLUTELY NO WARRANTY. The app statically links PJSIP, which is licensed under GPL-2.0-or-later, so the app as a whole is distributed under GPL-3.0-or-later.
 
-Licence of source files: every first-party source file starts with `SPDX-License-Identifier: GPL-3.0-or-later` and the line `Copyright © 2026 SIP Phone contributors` (as `//` comments in Swift and Objective-C, `#` comments in shell scripts). Vendored third-party code keeps its own notice, for example `Packages/WireGuardKit/` and `PacketTunnel/WgQuickConfig.swift` (both MIT, WireGuard LLC).
+Licence of source files: every first-party source file starts with `SPDX-License-Identifier: GPL-3.0-or-later` and the line `Copyright © 2026 Aarne Aarebye` (as `//` comments in Swift and Objective-C, `#` comments in shell scripts). Vendored third-party code keeps its own notice, for example `Packages/WireGuardKit/` and `PacketTunnel/WgQuickConfig.swift` (both MIT, WireGuard LLC).
 
 Source code: https://github.com/AarneAarebye/sip-phone, including the scripts that build PJSIP and the vendored libraries. The app shows this address, its version and the licences in its About window (About SIP Phone… in the menu bar window and in Settings).
 

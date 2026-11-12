@@ -2,7 +2,7 @@
 
 SIP Phone (the app `SipPhone.app` and the VPN system extension inside it) contains the third-party software listed below. Each entry gives the name, the version, the copyright holders and the licence, followed by the full licence text (or the standard licence text together with the component's own copyright notice).
 
-SIP Phone itself is free software: Copyright © 2026 SIP Phone contributors, licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later, see [LICENSE](LICENSE)). This program comes with ABSOLUTELY NO WARRANTY.
+SIP Phone itself is free software: Copyright © 2026 Aarne Aarebye, licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later, see [LICENSE](LICENSE)). This program comes with ABSOLUTELY NO WARRANTY.
 
 ## Offer of source
 

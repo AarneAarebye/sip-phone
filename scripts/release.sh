@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright © 2026 SIP Phone contributors
+# Copyright © 2026 Aarne Aarebye
 # Builds a universal, Developer ID signed, notarized and stapled SipPhone.dmg under build/release/.
 # See docs/RELEASE.md for the one-time prerequisites. The script holds no credentials: notarization uses the App Store
 # Connect API key in ~/.config/apple-api/ (override with SIPPHONE_NOTARY_DIR; api-key.env + the .p8 key file),
