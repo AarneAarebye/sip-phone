@@ -1,4 +1,5 @@
 import Foundation
+import ServiceManagement
 import PhoneCore
 import FritzTR064
 import SIPEngine
@@ -64,7 +65,8 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                        })
     }
 
-    /// Returns an error message if a secret could not be stored (nothing else is applied in that case).
+    /// Returns an error message if a secret could not be stored (nothing else is applied in that case),
+    /// or if the launch-at-login registration failed (everything else is applied).
     func applySettings(_ s: AppSettings, tr064Password: String?, sipPassword: String?, wireguardConfig: String? = nil) async -> String? {
         let pending: [(String?, String, String)] = [
             (tr064Password, SecretKey.tr064Password, "TR-064 password"),
@@ -79,6 +81,9 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
         settingsStore.save(s)
         core.updateSettings(s)
         await core.retry()
+        do {
+            if s.launchAtLogin { try await SMAppService.mainApp.register() } else { try await SMAppService.mainApp.unregister() }
+        } catch { return "Launch at login failed: \(error.localizedDescription)" }
         return nil
     }
 }

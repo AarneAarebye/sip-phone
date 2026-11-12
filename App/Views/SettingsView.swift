@@ -28,6 +28,7 @@ struct SettingsView: View {
             }
             Section("Behaviour") {
                 Toggle("Keep Mac awake while on power", isOn: $s.keepAwakeOnPower)
+                Toggle("Launch at login", isOn: $s.launchAtLogin)
             }
             if let saveError { Text(saveError).font(.caption).foregroundStyle(.red) }
             Button("Save") {
