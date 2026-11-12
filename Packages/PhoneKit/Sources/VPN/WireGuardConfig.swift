@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 SIP Phone contributors
+
 import Foundation
 
 /// Light structural check of a wg-quick config, done in the app before anything touches the system.

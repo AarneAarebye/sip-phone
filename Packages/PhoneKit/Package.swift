@@ -1,4 +1,6 @@
 // swift-tools-version:5.9
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 SIP Phone contributors
 import PackageDescription
 
 let package = Package(

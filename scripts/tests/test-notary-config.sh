@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 SIP Phone contributors
 # Tests for scripts/lib/notary-config.sh using synthetic dummy files in a temp directory only.
 # Usage: scripts/tests/test-notary-config.sh
 set -uo pipefail

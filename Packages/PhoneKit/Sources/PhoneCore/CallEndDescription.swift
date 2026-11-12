@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 SIP Phone contributors
+
 import Foundation
 
 /// Turns the way a call ended into user-facing wording. Only `isError` results are shown as errors.

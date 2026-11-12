@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 SIP Phone contributors
+
 import Foundation
 
 /// Shared clean-up of user- or phone-book-supplied numbers, used for dialling and for matching.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 SIP Phone contributors
+
 import Foundation
 
 /// Decision logic for the dial keypad's "+" input (long-press 0 and the + button).
