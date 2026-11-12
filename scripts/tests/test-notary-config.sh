@@ -108,7 +108,7 @@ notary_cfg_load "$d" 2>/dev/null && [ "$NOTARY_KEY_ID" = "$DUMMY_ID" ] && [ ! -e
 # folder mode warning (warn only, return 0)
 d="$(new_dir)"; chmod 755 "$d"
 w="$(notary_cfg_dir_check "$d" 2>&1)"; rc=$?
-{ [ $rc -eq 0 ] && case "$w" in *"chmod 700 ~/.config/sipphone-notary"*) true ;; *) false ;; esac; } \
+{ [ $rc -eq 0 ] && case "$w" in *"chmod 700 ~/.config/apple-api"*) true ;; *) false ;; esac; } \
   && ok "folder mode 755 warns with chmod 700 hint" || fail "folder mode 755 warns with chmod 700 hint"
 real="$(new_dir)"; ln -s "$real" "$TMP/linked"
 w="$(notary_cfg_dir_check "$TMP/linked" 2>&1)"

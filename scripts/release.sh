@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds a universal, Developer ID signed, notarized and stapled SipPhone.dmg under build/release/.
 # See docs/RELEASE.md for the one-time prerequisites. The script holds no credentials: notarization uses the App Store
-# Connect API key in ~/.config/sipphone-notary/ (override with SIPPHONE_NOTARY_DIR; api-key.env + the .p8 key file),
+# Connect API key in ~/.config/apple-api/ (override with SIPPHONE_NOTARY_DIR; api-key.env + the .p8 key file),
 # or, as a fallback when that folder has no api-key.env, the notarytool keychain profile "sipphone-notary".
 #
 # Usage: scripts/release.sh [--unsigned] [--skip-notarize] [--help]
@@ -19,7 +19,7 @@ EXT_BUNDLE_ID="com.aarneaarebye.sipphone.PacketTunnel"
 APP_PROFILE="SipPhone Developer ID"                  # must match project.yml
 EXT_PROFILE="SipPhone PacketTunnel Developer ID"     # must match project.yml
 NOTARY_PROFILE="sipphone-notary"                     # fallback only, used when $NOTARY_CONFIG_DIR/api-key.env is absent
-NOTARY_CONFIG_DIR="${SIPPHONE_NOTARY_DIR:-$HOME/.config/sipphone-notary}"
+NOTARY_CONFIG_DIR="${SIPPHONE_NOTARY_DIR:-$HOME/.config/apple-api}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/notary-config.sh

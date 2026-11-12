@@ -36,10 +36,10 @@ Download both `.provisionprofile` files and double-click each to install them (X
 
 ### Notarization credentials
 
-`scripts/release.sh` authenticates `notarytool` with an App Store Connect API key kept outside the repository in `~/.config/sipphone-notary/` (override the folder with the environment variable `SIPPHONE_NOTARY_DIR`):
+`scripts/release.sh` authenticates `notarytool` with an App Store Connect API key kept outside the repository in `~/.config/apple-api/` (override the folder with the environment variable `SIPPHONE_NOTARY_DIR`):
 
 ```
-~/.config/sipphone-notary/            mode 700
+~/.config/apple-api/            mode 700
   api-key.env                         mode 600
   AuthKey_<NAME>_<KEYID>.p8           mode 600, the private key
 ```
@@ -57,13 +57,13 @@ ISSUER=<issuer id>
 
 Format rules: one `KEY=value` per line, no spaces around `=`, no `export`, no inline comments (a comment must be on its own line starting with `#`), single or double quotes around the value are allowed, the last duplicate wins, and a UTF-8 BOM on the first line is not supported.
 
-The script reads only these three keys with a small parser; it never `source`s the file, never prints the values, and passes the key to `notarytool` as a file path (`--key`, `--key-id`, `--issuer`), so the private key never appears on a command line or in output. The key id and issuer are identifiers, not secrets, but they are visible to local users in `ps` while `notarytool` runs; the script itself never prints them or the key file name. It stops with a `chmod 600` hint if `api-key.env` or the key file is missing, not a regular file, or accessible by group or others, and warns (does not stop) when the folder is not mode 700 (`chmod 700 ~/.config/sipphone-notary`).
+The script reads only these three keys with a small parser; it never `source`s the file, never prints the values, and passes the key to `notarytool` as a file path (`--key`, `--key-id`, `--issuer`), so the private key never appears on a command line or in output. The key id and issuer are identifiers, not secrets, but they are visible to local users in `ps` while `notarytool` runs; the script itself never prints them or the key file name. It stops with a `chmod 600` hint if `api-key.env` or the key file is missing, not a regular file, or accessible by group or others, and warns (does not stop) when the folder is not mode 700 (`chmod 700 ~/.config/apple-api`).
 
 The API key needs the Developer role or higher (App Store Connect > Users and Access > Integrations > Team Keys); such a key can notarize. The folder must never be committed. It lives outside the repo, and nothing in the repository references the key id, issuer or key file.
 
 Tests for the parser and permission checks use synthetic files in a temp directory: `scripts/tests/test-notary-config.sh`.
 
-Fallback: if `api-key.env` does not exist in that folder, the script uses the notarytool keychain profile `sipphone-notary` instead. Create it once with an app-specific password from account.apple.com (the command prompts for it; nothing is written to the repository):
+Fallback: if `api-key.env` does not exist in that folder, the script uses the notarytool Keychain profile `sipphone-notary` instead (a Keychain item, not a folder). Create it once with an app-specific password from account.apple.com (the command prompts for it; nothing is written to the repository):
 
 ```
 xcrun notarytool store-credentials "sipphone-notary" --apple-id <apple id> --team-id LKF7C4WS72
@@ -126,7 +126,7 @@ macOS 26 Tahoe is the last macOS release that supports Intel Macs. The app deplo
 - "System extension not found inside the app": the extension must be at `Contents/Library/SystemExtensions/com.aarneaarebye.sipphone.PacketTunnel.systemextension`. It comes from the `PacketTunnel` dependency of the app target in `project.yml`; `PRODUCT_NAME` of the extension must be its bundle id.
 - Notarization rejected: the script prints the log. Common causes are a missing hardened runtime, a missing secure timestamp, or an unsigned nested binary. Fetch it again with `xcrun notarytool log <submission id>` with the same credential flags as the script (`--key <path to the .p8> --key-id <id> --issuer <issuer>`, or `--keychain-profile sipphone-notary` for the fallback); the ids are listed by `xcrun notarytool history` with the same flags.
 - `notarytool history` fails in the prerequisite check: the API key may be revoked, have too low a role, or `KEY_ID` / `ISSUER` may be wrong; for the keychain fallback re-run `store-credentials` (the app-specific password may have been revoked).
-- "api-key.env ... group/other must have no access": `chmod 600` the file named in the message (and the `.p8`); `chmod 700 ~/.config/sipphone-notary`.
+- "api-key.env ... group/other must have no access": `chmod 600` the file named in the message (and the `.p8`); `chmod 700 ~/.config/apple-api`.
 - Extension stays "waiting for user approval" or never appears: it is only activated for an app in `/Applications`; check `systemextensionsctl list` and the approval in System Settings.
 - Go build fails inside Xcode: make sure `go` is on the path that Xcode sees (`/opt/homebrew/bin` on Apple Silicon, `/usr/local/bin` on Intel); run the script from a shell where `go version` works.
 

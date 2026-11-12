@@ -1,5 +1,5 @@
 #!/bin/bash
-# Safe loader for the notarytool App Store Connect API key folder (default ~/.config/sipphone-notary/).
+# Safe loader for the notarytool App Store Connect API key folder (default ~/.config/apple-api/).
 # Meant to be sourced by scripts/release.sh and scripts/tests/test-notary-config.sh. It never sources the env file,
 # never prints values from it, and reports only the NAME of the offending field or file in errors.
 #
@@ -21,7 +21,7 @@ notary_cfg_dir_check() {
   local dir="$1" m
   m="$(notary_cfg_mode "$dir")" || return 0
   if [ "$m" != "700" ]; then
-    echo "WARNING: notary config folder has mode $m, expected 700. Run: chmod 700 ~/.config/sipphone-notary" >&2
+    echo "WARNING: notary config folder has mode $m, expected 700. Run: chmod 700 ~/.config/apple-api" >&2
   fi
   return 0
 }
@@ -32,7 +32,7 @@ notary_cfg_check_file() {   # $1 = path, $2 = label (a field/file name, never a 
   { [ -f "$p" ] && [ ! -L "$p" ]; } || { notary_cfg_err "$label must be a regular file (not a symlink or directory)."; return 1; }
   m="$(notary_cfg_mode "$p")" || { notary_cfg_err "cannot read the permissions of $label."; return 1; }
   if [ $(( 8#$m & 8#077 )) -ne 0 ]; then
-    notary_cfg_err "$label has mode $m, group/other must have no access. Run: chmod 600 \"<notary config folder>/$label\" (usually ~/.config/sipphone-notary/$label)"
+    notary_cfg_err "$label has mode $m, group/other must have no access. Run: chmod 600 \"<notary config folder>/$label\" (usually ~/.config/apple-api/$label)"
     return 1
   fi
   return 0
