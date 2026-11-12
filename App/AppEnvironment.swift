@@ -69,6 +69,15 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                        })
     }
 
+    /// Whether a secret is stored in the Keychain (never reads the value).
+    func isStored(_ key: String) -> Bool { secrets.contains(key) }
+
+    /// Deletes a stored secret. Returns an error message on failure. Does not reconnect.
+    func removeSecret(_ key: String) -> String? {
+        do { try secrets.set(nil, for: key); return nil }
+        catch { return "Could not remove the item from the Keychain: \(error.localizedDescription)" }
+    }
+
     var hasPinnedCertificate: Bool { pinStore.load() != nil }
 
     /// After replacing or resetting the FRITZ!Box: trust the certificate seen on the next connection.

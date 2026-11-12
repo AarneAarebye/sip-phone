@@ -10,6 +10,25 @@ struct SettingsView: View {
     @State private var saveError: String?
     @State private var loginItemMessage: String?
     @State private var hasPin = false
+    @State private var sipStored = false
+    @State private var tr064Stored = false
+    @State private var wgStored = false
+    @State private var replacingWG = false
+    @State private var confirmRemoveWG = false
+
+    private func refreshStored() {
+        sipStored = env.isStored(SecretKey.sipPassword)
+        tr064Stored = env.isStored(SecretKey.tr064Password)
+        wgStored = env.isStored(SecretKey.wireguardConfig)
+    }
+
+    @ViewBuilder private func storedCaption(_ stored: Bool) -> some View {
+        if stored {
+            Label("Stored in Keychain", systemImage: "checkmark").font(.caption).foregroundStyle(.green)
+        } else {
+            Text("Not set").font(.caption).foregroundStyle(.secondary)
+        }
+    }
 
     var body: some View {
         Form {
@@ -17,8 +36,10 @@ struct SettingsView: View {
                 TextField("Address", text: $s.fritzHost)
                 TextField("Phone extension user (SIP)", text: $s.sipUser)
                 SecureField("SIP password (leave empty to keep)", text: $sipPassword)
+                storedCaption(sipStored)
                 TextField("FRITZ!Box user (TR-064)", text: $s.tr064User)
                 SecureField("TR-064 password (leave empty to keep)", text: $tr064Password)
+                storedCaption(tr064Stored)
             }
             Section("Certificate") {
                 HStack {
@@ -35,8 +56,22 @@ struct SettingsView: View {
                 TextField("Local area code (e.g. 030)", text: $s.areaCode)
             }
             Section("VPN (WireGuard)") {
-                TextEditor(text: $wireguard).font(.system(.caption, design: .monospaced)).frame(height: 90)
-                Text("Paste the .conf exported from the FRITZ!Box. It is stored in the Keychain.").font(.caption2)
+                if wgStored && !replacingWG {
+                    HStack {
+                        Label("WireGuard configuration stored in Keychain", systemImage: "checkmark").font(.caption).foregroundStyle(.green)
+                        Spacer()
+                        Button("Replace…") { replacingWG = true }
+                        Button("Remove", role: .destructive) { confirmRemoveWG = true }
+                    }
+                } else {
+                    TextEditor(text: $wireguard).font(.system(.caption, design: .monospaced)).frame(height: 90)
+                    Text("Paste the .conf exported from the FRITZ!Box. It is stored in the Keychain.").font(.caption2)
+                    if wgStored {
+                        Button("Cancel") { replacingWG = false; wireguard = "" }
+                    } else {
+                        storedCaption(false)
+                    }
+                }
             }
             Section("Behaviour") {
                 Toggle("Keep Mac awake while on power", isOn: $s.keepAwakeOnPower)
@@ -49,14 +84,23 @@ struct SettingsView: View {
                     let r = await env.applySettings(s, tr064Password: tr064Password, sipPassword: sipPassword,
                                                     wireguardConfig: wireguard)
                     saveError = r.saveError; loginItemMessage = r.loginItemMessage
-                    if saveError == nil { tr064Password = ""; sipPassword = ""; wireguard = "" }
+                    if saveError == nil { tr064Password = ""; sipPassword = ""; wireguard = ""; replacingWG = false }
+                    refreshStored()
                 }
             }
         }
         .formStyle(.grouped).frame(width: 440).padding()
+        .confirmationDialog("Remove the WireGuard configuration from the Keychain?", isPresented: $confirmRemoveWG) {
+            Button("Remove", role: .destructive) {
+                saveError = env.removeSecret(SecretKey.wireguardConfig)
+                refreshStored()
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .onAppear {
             s = env.settingsStore.load()
             hasPin = env.hasPinnedCertificate
+            refreshStored()
             s.launchAtLogin = LaunchAtLogin.isOn(AppEnvironment.loginItemStatus())
         }
         .background(SettingsWindowActivator())

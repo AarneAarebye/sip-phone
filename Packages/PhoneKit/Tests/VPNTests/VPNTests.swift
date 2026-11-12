@@ -25,6 +25,7 @@ PersistentKeepalive = 25
 private final class FakeSecrets: SecretStore, @unchecked Sendable {
     var values: [String: String] = [:]
     func get(_ key: String) -> String? { values[key] }
+    func contains(_ key: String) -> Bool { values[key] != nil }
     func set(_ value: String?, for key: String) throws { values[key] = value }
 }
 

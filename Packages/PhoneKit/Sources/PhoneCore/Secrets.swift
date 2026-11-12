@@ -3,6 +3,8 @@ import Security
 
 public protocol SecretStore: Sendable {
     func get(_ key: String) -> String?
+    /// Whether a secret exists, answered without reading its value into memory.
+    func contains(_ key: String) -> Bool
     func set(_ value: String?, for key: String) throws
 }
 public enum SecretKey {
@@ -22,6 +24,10 @@ public struct KeychainSecretStore: SecretStore {
         var out: AnyObject?
         guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data else { return nil }
         return String(data: d, encoding: .utf8)
+    }
+    public func contains(_ key: String) -> Bool {
+        var q = query(key); q[kSecMatchLimit as String] = kSecMatchLimitOne
+        return SecItemCopyMatching(q as CFDictionary, nil) == errSecSuccess
     }
     public func set(_ value: String?, for key: String) throws {
         SecItemDelete(query(key) as CFDictionary)
