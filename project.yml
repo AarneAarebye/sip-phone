@@ -26,6 +26,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.sipphone
+        # App/Assets.xcassets (picked up via sources: [App]); drawn by scripts/make-icon.swift.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
         # Committed entitlements files (not generated): Debug uses the plain packet-tunnel-provider value that
         # development profiles allow; Release uses the -systemextension value (Developer ID).
