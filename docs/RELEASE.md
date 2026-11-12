@@ -36,11 +36,35 @@ Download both `.provisionprofile` files and double-click each to install them (X
 
 ### Notarization credentials
 
-Create an app-specific password at account.apple.com, then store it once in the keychain (the command prompts for it; nothing is written to the repository):
+`scripts/release.sh` authenticates `notarytool` with an App Store Connect API key kept outside the repository in `~/.config/sipphone-notary/` (override the folder with the environment variable `SIPPHONE_NOTARY_DIR`):
+
+```
+~/.config/sipphone-notary/            mode 700
+  api-key.env                         mode 600
+  AuthKey_<NAME>_<KEYID>.p8           mode 600, the private key
+```
+
+`api-key.env` holds three `KEY=VALUE` lines (quotes, blank lines and `#` comments are allowed; other keys are ignored):
+
+```
+KEY_FILE=AuthKey_<NAME>_<KEYID>.p8    # file name in the same folder, no path separators
+KEY_ID=<key id>                       # letters, digits, . _ -
+ISSUER=<issuer id>                    # the UUID shown on the App Store Connect Keys page
+```
+
+The script reads only these three keys with a small parser; it never `source`s the file, never prints the values and passes the key to `notarytool` as a file path (`--key`, `--key-id`, `--issuer`), so no secret appears on a command line or in output. It stops with a `chmod 600` hint if `api-key.env` or the key file is missing, not a regular file, or accessible by group or others, and warns (does not stop) when the folder is not mode 700 (`chmod 700 ~/.config/sipphone-notary`).
+
+The API key needs the Developer role or higher (App Store Connect > Users and Access > Integrations > Team Keys); such a key can notarize. The folder must never be committed. It lives outside the repo, and nothing in the repository references the key id, issuer or key file.
+
+Tests for the parser and permission checks use synthetic files in a temp directory: `scripts/tests/test-notary-config.sh`.
+
+Fallback: if `api-key.env` does not exist in that folder, the script uses the notarytool keychain profile `fritzphone-notary` instead. Create it once with an app-specific password from account.apple.com (the command prompts for it; nothing is written to the repository):
 
 ```
 xcrun notarytool store-credentials "fritzphone-notary" --apple-id <apple id> --team-id LKF7C4WS72
 ```
+
+`--unsigned` and `--skip-notarize` need neither.
 
 ### Tools
 
@@ -56,7 +80,7 @@ scripts/release.sh --unsigned         # dry run, see below
 
 Output is under `build/release/` (git-ignored): `FritzPhone.xcarchive`, `ExportOptions.plist` (generated), `export/FritzPhone.app`, `FritzPhone.dmg`.
 
-The script stops with a message if the certificate, either profile, the notarytool profile, `xcodegen` or `go` is missing. Steps of a full run:
+The script stops with a message if the certificate, either profile, the notary credentials, `xcodegen` or `go` is missing. Steps of a full run:
 
 1. build PJSIP if needed, `xcodegen`
 2. `xcodebuild archive` (Release, `ARCHS = arm64 x86_64`, hardened runtime, manual signing)
@@ -71,7 +95,7 @@ Signature verification also requires a secure timestamp (`Timestamp=` in `codesi
 
 ### Unsigned dry run
 
-`--unsigned` archives with `CODE_SIGNING_ALLOWED=NO` and checks that the app and the extension are universal, then stops. It needs no certificate, profiles or notary profile, exports nothing and builds no DMG. The archive is unsigned: it cannot activate the system extension and must not be distributed. The same applies to `xcodebuild ... CODE_SIGNING_ALLOWED=NO build`, which also works for the Release configuration.
+`--unsigned` archives with `CODE_SIGNING_ALLOWED=NO` and checks that the app and the extension are universal, then stops. It needs no certificate, profiles or notary credentials, exports nothing and builds no DMG. The archive is unsigned: it cannot activate the system extension and must not be distributed. The same applies to `xcodebuild ... CODE_SIGNING_ALLOWED=NO build`, which also works for the Release configuration.
 
 ## First run on a target Mac
 
@@ -95,11 +119,12 @@ macOS 26 Tahoe is the last macOS release that supports Intel Macs. The app deplo
 - "Provisioning profile ... doesn't include the ... entitlement" or "profile doesn't match bundle identifier": the profile was created for the wrong App ID, or the App ID lacks Network Extensions / System Extension. Fix the App ID, regenerate and reinstall the profile, and keep its name. Inspect an installed profile: `security cms -D -i <file>.provisionprofile`.
 - "No profile matching 'FritzPhone Developer ID' found": the name differs from the one in `project.yml`, or the profile is of a different type (it must be Developer ID, not Development).
 - "System extension not found inside the app": the extension must be at `Contents/Library/SystemExtensions/com.aarneaarebye.fritzphone.PacketTunnel.systemextension`. It comes from the `PacketTunnel` dependency of the app target in `project.yml`; `PRODUCT_NAME` of the extension must be its bundle id.
-- Notarization rejected: the script prints the log. Common causes are a missing hardened runtime, a missing secure timestamp, or an unsigned nested binary. Fetch it again with `xcrun notarytool log <submission id> --keychain-profile fritzphone-notary`; the ids are listed by `xcrun notarytool history --keychain-profile fritzphone-notary`.
-- `notarytool history` fails in the prerequisite check: re-run `store-credentials`; the app-specific password may have been revoked.
+- Notarization rejected: the script prints the log. Common causes are a missing hardened runtime, a missing secure timestamp, or an unsigned nested binary. Fetch it again with `xcrun notarytool log <submission id>` with the same credential flags as the script (`--key <path to the .p8> --key-id <id> --issuer <issuer>`, or `--keychain-profile fritzphone-notary` for the fallback); the ids are listed by `xcrun notarytool history` with the same flags.
+- `notarytool history` fails in the prerequisite check: the API key may be revoked, have too low a role, or `KEY_ID` / `ISSUER` may be wrong; for the keychain fallback re-run `store-credentials` (the app-specific password may have been revoked).
+- "api-key.env ... group/other must have no access": `chmod 600` the file named in the message (and the `.p8`); `chmod 700 ~/.config/sipphone-notary`.
 - Extension stays "waiting for user approval" or never appears: it is only activated for an app in `/Applications`; check `systemextensionsctl list` and the approval in System Settings.
 - Go build fails inside Xcode: make sure `go` is on the path that Xcode sees (`/opt/homebrew/bin` on Apple Silicon, `/usr/local/bin` on Intel); run the script from a shell where `go version` works.
 
 ## Status
 
-The unsigned dry run and the unsigned Debug and Release builds are verified. A full signed, notarized run needs the certificate, profiles and notary profile above and has not been performed yet; the signing, notarization, stapling and DMG steps are therefore untested.
+The unsigned dry run and the unsigned Debug and Release builds are verified. A full signed, notarized run needs the certificate, profiles and notary credentials above and has not been performed yet; the signing, notarization, stapling and DMG steps are therefore untested.

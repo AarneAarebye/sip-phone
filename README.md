@@ -41,7 +41,7 @@ A signed build requires Apple provisioning profiles with the Network Extension a
 
 ## Releasing
 
-`scripts/release.sh` builds a universal, Developer ID signed, notarized and stapled `build/release/FritzPhone.dmg`. `scripts/release.sh --unsigned` is a dry run (archive plus universal check, no signing). Prerequisites (certificate, two provisioning profiles, notarytool profile) and troubleshooting are in [docs/RELEASE.md](docs/RELEASE.md).
+`scripts/release.sh` builds a universal, Developer ID signed, notarized and stapled `build/release/FritzPhone.dmg`. `scripts/release.sh --unsigned` is a dry run (archive plus universal check, no signing). Notarization uses an App Store Connect API key in `~/.config/sipphone-notary/` (`api-key.env` with `KEY_FILE`, `KEY_ID`, `ISSUER`, plus the `.p8` key file; modes 600, folder 700; override the folder with `SIPPHONE_NOTARY_DIR`; the `fritzphone-notary` Keychain profile remains a fallback). That folder lives outside the repository and must never be committed. Prerequisites (certificate, two provisioning profiles, notary credentials) and troubleshooting are in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## VPN (system extension)
 

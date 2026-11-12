@@ -1,7 +1,8 @@
 #!/bin/bash
 # Builds a universal, Developer ID signed, notarized and stapled FritzPhone.dmg under build/release/.
-# See docs/RELEASE.md for the one-time prerequisites. The script holds no credentials: notarization uses the
-# notarytool keychain profile "fritzphone-notary" created by the user with `xcrun notarytool store-credentials`.
+# See docs/RELEASE.md for the one-time prerequisites. The script holds no credentials: notarization uses the App Store
+# Connect API key in ~/.config/sipphone-notary/ (override with SIPPHONE_NOTARY_DIR; api-key.env + the .p8 key file),
+# or, as a fallback when that folder has no api-key.env, the notarytool keychain profile "fritzphone-notary".
 #
 # Usage: scripts/release.sh [--unsigned] [--skip-notarize] [--help]
 #   --unsigned       Dry run: archive with CODE_SIGNING_ALLOWED=NO, check the app and extension are universal, stop.
@@ -17,9 +18,12 @@ APP_BUNDLE_ID="com.aarneaarebye.fritzphone"
 EXT_BUNDLE_ID="com.aarneaarebye.fritzphone.PacketTunnel"
 APP_PROFILE="FritzPhone Developer ID"                  # must match project.yml
 EXT_PROFILE="FritzPhone PacketTunnel Developer ID"     # must match project.yml
-NOTARY_PROFILE="fritzphone-notary"
+NOTARY_PROFILE="fritzphone-notary"                     # fallback only, used when $NOTARY_CONFIG_DIR/api-key.env is absent
+NOTARY_CONFIG_DIR="${SIPPHONE_NOTARY_DIR:-$HOME/.config/sipphone-notary}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib/notary-config.sh
+. "$ROOT/scripts/lib/notary-config.sh"
 OUT="$ROOT/build/release"
 ARCHIVE="$OUT/$APP_NAME.xcarchive"
 EXPORT="$OUT/export"
@@ -32,7 +36,7 @@ for arg in "$@"; do
   case "$arg" in
     --unsigned) UNSIGNED=1 ;;
     --skip-notarize) SKIP_NOTARIZE=1 ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg (see --help)" >&2; exit 2 ;;
   esac
 done
@@ -55,6 +59,20 @@ check_archs() {   # $1 = label, $2 = executable path; must contain arm64 and x86
   echo "$1: $archs"
   case " $archs " in *" arm64 "*) ;; *) die "$1 lacks arm64 (has: $archs)" ;; esac
   case " $archs " in *" x86_64 "*) ;; *) die "$1 lacks x86_64 (has: $archs)" ;; esac
+}
+
+NOTARY_ARGS=()
+notary_args() {   # fills NOTARY_ARGS with the notarytool credential flags; the key is passed as a file path
+  NOTARY_ARGS=()
+  if [ -f "$NOTARY_CONFIG_DIR/api-key.env" ]; then
+    notary_cfg_dir_check "$NOTARY_CONFIG_DIR"
+    notary_cfg_load "$NOTARY_CONFIG_DIR" || die "Notary config in $NOTARY_CONFIG_DIR is invalid (see docs/RELEASE.md, 'Notarization credentials')."
+    echo "Notary credentials: API key from $NOTARY_CONFIG_DIR (key file $NOTARY_KEY_NAME)"
+    NOTARY_ARGS=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+  else
+    echo "Notary credentials: no api-key.env in $NOTARY_CONFIG_DIR, falling back to keychain profile '$NOTARY_PROFILE'"
+    NOTARY_ARGS=(--keychain-profile "$NOTARY_PROFILE")
+  fi
 }
 
 # ---- prerequisites -------------------------------------------------------------------------------------------
@@ -102,8 +120,9 @@ if [ "$UNSIGNED" -eq 0 ]; then
   done
 
   if [ "$SKIP_NOTARIZE" -eq 0 ]; then
-    xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
-      || die "notarytool keychain profile '$NOTARY_PROFILE' is missing or invalid. Create it once with: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" (see docs/RELEASE.md)."
+    notary_args
+    xcrun notarytool history "${NOTARY_ARGS[@]}" >/dev/null 2>&1 \
+      || die "notarytool rejected the notary credentials (API key in $NOTARY_CONFIG_DIR, or keychain profile '$NOTARY_PROFILE' as fallback). Check docs/RELEASE.md, 'Notarization credentials'."
   fi
 fi
 
@@ -198,13 +217,13 @@ check_archs "extension" "$EXT/Contents/MacOS/$EXT_BUNDLE_ID"
 
 notarize() {   # $1 = file to submit (zip or dmg); exits via die when not accepted
   local out id
-  out="$(xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1)" || true
+  out="$(xcrun notarytool submit "$1" "${NOTARY_ARGS[@]}" --wait 2>&1)" || true
   printf '%s\n' "$out"
   if ! grep -q -- "status: Accepted" <<<"$out"; then
     id="$(printf '%s\n' "$out" | awk '/^ *id:/ {print $2; exit}')"
     if [ -n "$id" ]; then
       echo "--- notarization log ---" >&2
-      xcrun notarytool log "$id" --keychain-profile "$NOTARY_PROFILE" >&2 || true
+      xcrun notarytool log "$id" "${NOTARY_ARGS[@]}" >&2 || true
     fi
     die "Notarization of $1 was not accepted."
   fi
