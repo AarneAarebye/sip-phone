@@ -27,6 +27,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             Self.log.error("Invalid WireGuard configuration")
             return completionHandler(Self.error("Invalid WireGuard configuration"))
         }
+        // Split tunnel (the app already narrowed AllowedIPs to the home network): the config's DNS servers
+        // answer only for the home domain, so ordinary lookups keep using the Mac's own DNS.
+        let split = TunnelConfigHandoff.isSplitTunnel(startOptions: options)
+        adapter.dnsMatchDomains = split ? Self.uniqued(TunnelConfigHandoff.splitDNSDomains + config.interface.dnsSearch) : nil
+        Self.log.log("Starting \(split ? "split" : "full", privacy: .public) tunnel")
         adapter.start(tunnelConfiguration: config) { adapterError in
             if let adapterError {
                 Self.log.error("Adapter start failed: \(String(describing: adapterError), privacy: .public)")
@@ -44,6 +49,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         adapter.stop { _ in completionHandler() }
+    }
+
+    private static func uniqued(_ domains: [String]) -> [String] {
+        var seen = Set<String>()
+        return domains.filter { seen.insert($0.lowercased()).inserted }
     }
 
     private static func error(_ message: String) -> NSError {

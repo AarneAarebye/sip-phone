@@ -56,6 +56,11 @@ public class WireGuardAdapter {
     /// Adapter state.
     private var state: State = .stopped
 
+    // SIP Phone patch: DNS domains the tunnel's DNS servers answer for (split tunnel). nil = upstream
+    // behaviour (all lookups go to the tunnel's DNS). Set before `start(tunnelConfiguration:)`; read on the
+    // work queue whenever network settings are generated.
+    public var dnsMatchDomains: [String]?
+
     /// Tunnel device file descriptor.
     private var tunnelFileDescriptor: Int32? {
         var ctlInfo = ctl_info()
@@ -390,7 +395,8 @@ public class WireGuardAdapter {
     private func makeSettingsGenerator(with tunnelConfiguration: TunnelConfiguration) throws -> PacketTunnelSettingsGenerator {
         return PacketTunnelSettingsGenerator(
             tunnelConfiguration: tunnelConfiguration,
-            resolvedEndpoints: try self.resolvePeers(for: tunnelConfiguration)
+            resolvedEndpoints: try self.resolvePeers(for: tunnelConfiguration),
+            dnsMatchDomains: dnsMatchDomains   // SIP Phone patch
         )
     }
 

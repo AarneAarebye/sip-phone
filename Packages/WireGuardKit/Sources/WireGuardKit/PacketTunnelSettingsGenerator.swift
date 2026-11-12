@@ -15,10 +15,13 @@ typealias EndpointResolutionResult = Result<(Endpoint, Endpoint), DNSResolutionE
 class PacketTunnelSettingsGenerator {
     let tunnelConfiguration: TunnelConfiguration
     let resolvedEndpoints: [Endpoint?]
+    // SIP Phone patch: nil = upstream behaviour; see `WireGuardAdapter.dnsMatchDomains`.
+    let dnsMatchDomains: [String]?
 
-    init(tunnelConfiguration: TunnelConfiguration, resolvedEndpoints: [Endpoint?]) {
+    init(tunnelConfiguration: TunnelConfiguration, resolvedEndpoints: [Endpoint?], dnsMatchDomains: [String]? = nil) {
         self.tunnelConfiguration = tunnelConfiguration
         self.resolvedEndpoints = resolvedEndpoints
+        self.dnsMatchDomains = dnsMatchDomains
     }
 
     func endpointUapiConfiguration() -> (String, [EndpointResolutionResult?]) {
@@ -87,7 +90,12 @@ class PacketTunnelSettingsGenerator {
             let dnsServerStrings = tunnelConfiguration.interface.dns.map { $0.stringRepresentation }
             let dnsSettings = NEDNSSettings(servers: dnsServerStrings)
             dnsSettings.searchDomains = tunnelConfiguration.interface.dnsSearch
-            if !tunnelConfiguration.interface.dns.isEmpty {
+            if let dnsMatchDomains, !tunnelConfiguration.interface.dns.isEmpty {
+                // SIP Phone patch (split tunnel): the tunnel's DNS answers only these domains; every other
+                // lookup keeps using the Mac's normal DNS.
+                dnsSettings.matchDomains = dnsMatchDomains
+                dnsSettings.matchDomainsNoSearch = false
+            } else if !tunnelConfiguration.interface.dns.isEmpty {
                 dnsSettings.matchDomains = [""] // All DNS queries must first go through the tunnel's DNS
             }
             networkSettings.dnsSettings = dnsSettings

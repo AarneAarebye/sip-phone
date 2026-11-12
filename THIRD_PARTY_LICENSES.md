@@ -1254,6 +1254,7 @@ SOFTWARE.
 ## WireGuardKit (wireguard-apple)
 
 - Vendored in `Packages/WireGuardKit` from https://git.zx2c4.com/wireguard-apple at commit 2fec12a6e1f6e3460b6ee483aa00ad29cddadab1 (Swift package, the C helpers `WireGuardKitC` and the Go bridge sources `WireGuardKitGo`), compiled into the VPN extension.
+- Changes: the package manifest, one `#include <sys/types.h>` in `WireGuardKitC.h`, and a small patch marked "SIP Phone patch" in `WireGuardAdapter.swift` and `PacketTunnelSettingsGenerator.swift` that lets a split tunnel limit the tunnel's DNS servers to given domains (`dnsMatchDomains`; unset = upstream behaviour).
 - Copyright © 2018-2023 WireGuard LLC. All Rights Reserved; `WireGuardKitC` and the Go bridge Makefile: Copyright (C) 2015-2019 Jason A. Donenfeld. `x25519.c` is based on TweetNaCl (public domain). Licence: MIT (`Packages/WireGuardKit/COPYING`).
 
 ```text
