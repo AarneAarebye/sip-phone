@@ -97,6 +97,8 @@ public final class AppCore {
     @ObservationIgnored private var pathChanged = false
     @ObservationIgnored private var index = PhoneBookIndex(contacts: [])
     @ObservationIgnored private var startedVPN = false
+    /// The app's own tunnel is (being) used; media is then bound to the tunnel address (see AppEnvironment.mediaAddress).
+    public var vpnStartedByApp: Bool { startedVPN }
     @ObservationIgnored private var onAC = false
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var reconnectTask: Task<Void, Never>?

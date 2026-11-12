@@ -72,6 +72,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
 
     init() {
         let store = settingsStore, secrets = secrets, pins = pinStore
+        let coreRef = CoreRef()
         let book = LivePhoneBook(pins: pins) {
             let s = store.load()
             guard !s.tr064User.isEmpty, let pw = secrets.get(SecretKey.tr064Password) else { return nil }
@@ -85,17 +86,23 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                        sipConfig: {
                            let s = store.load()
                            guard !s.sipUser.isEmpty, let pw = secrets.get(SecretKey.sipPassword) else { return nil }
-                           let media = Self.mediaAddress(s)
+                           let media = Self.mediaAddress(s, ownTunnelInUse: coreRef.core?.vpnStartedByApp ?? false)
                            return SIPConfig(host: s.fritzHost, user: s.sipUser, password: pw,
                                             mediaAddressMode: media.mode, mediaBindAddress: media.bind)
                        },
                        phoneBookFailureDetail: { book.failureDetail })
+        coreRef.core = core
     }
 
-    /// Effective media-address mode for the next registration: "tunnel interface" needs a tunnel address
-    /// (a utun IPv4 in the home network); without one it falls back to automatic.
-    nonisolated static func mediaAddress(_ s: AppSettings) -> (mode: MediaAddressMode, bind: String?) {
-        guard s.mediaAddressMode == .tunnelInterface else { return (s.mediaAddressMode, nil) }
+    private final class CoreRef { weak var core: AppCore? }
+
+    /// Effective media-address mode for the next registration. With the split tunnel the default route stays on the
+    /// physical interface, so PJSIP's own address choice would put the hotspot/LAN address into the SDP and the
+    /// FRITZ!Box would never reach us (no audio). Therefore "automatic" also binds to the tunnel address whenever a
+    /// tunnel IPv4 in the home network exists and the app's own tunnel is in use (so another VPN never hijacks media); at home PJSIP decides as before. "Tunnel interface"
+    /// needs a tunnel address too and falls back to automatic without one.
+    nonisolated static func mediaAddress(_ s: AppSettings, ownTunnelInUse: Bool = false) -> (mode: MediaAddressMode, bind: String?) {
+        guard s.mediaAddressMode == .tunnelInterface || (s.mediaAddressMode == .automatic && ownTunnelInUse) else { return (s.mediaAddressMode, nil) }
         let cidr = s.homeNetworkCIDR.trimmingCharacters(in: .whitespaces)
         guard let ip = MediaAddress.tunnelAddress(from: MediaAddress.currentIPv4Interfaces(), homeNetwork: cidr.isEmpty ? nil : cidr)
         else { return (.automatic, nil) }
