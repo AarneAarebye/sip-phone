@@ -171,6 +171,7 @@ Einschränkungen:
 - Das Zertifikat der FRITZ!Box wird bei der ersten Verwendung festgesetzt (gepinnt). Ändert es sich später, verweigert die App die Verbindung, bis Sie „Forget pinned certificate“ wählen.
 - Der Kontakt-Cache ist eine einfache JSON-Datei im Container der App auf Ihrem Mac. Sie ist nicht verschlüsselt.
 - Die App sendet nichts an andere Server als Ihre FRITZ!Box (und die WireGuard-Gegenstelle, falls Sie das VPN nutzen).
+- SIP Phone ist freie Software unter der GNU General Public License v3.0 oder später. Den Quellcode finden Sie unter https://github.com/AarneAarebye/sip-phone; über „About SIP Phone…“ im Menüleisten-Fenster oder in den Einstellungen sehen Sie die Version, den GitHub-Link und die Lizenzen der verwendeten Open-Source-Komponenten.
 
 ## 10. Hilfe und Fehlerberichte
 

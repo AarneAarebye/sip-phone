@@ -93,3 +93,16 @@ Ideas: check whether CallKit is usable on macOS, an iPhone companion app, a Call
 SIP Phone is free software, released under the GNU General Public License v3.0 or later (GPL-3.0-or-later); the full text is in [LICENSE](LICENSE). This program comes with ABSOLUTELY NO WARRANTY. The app statically links PJSIP, which is licensed under GPL-2.0-or-later, so the app as a whole is distributed under GPL-3.0-or-later.
 
 Licence of source files: every first-party source file starts with `SPDX-License-Identifier: GPL-3.0-or-later` and the line `Copyright © 2026 SIP Phone contributors` (as `//` comments in Swift and Objective-C, `#` comments in shell scripts). Vendored third-party code keeps its own notice, for example `Packages/WireGuardKit/` and `PacketTunnel/WgQuickConfig.swift` (both MIT, WireGuard LLC).
+
+Source code: https://github.com/AarneAarebye/sip-phone, including the scripts that build PJSIP and the vendored libraries. The app shows this address, its version and the licences in its About window (About SIP Phone… in the menu bar window and in Settings).
+
+## Third-party software
+
+The app and its VPN extension contain the following open source components. The full licence texts are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which is also bundled in the app and shown by "Third-party licences…" in the About window.
+
+- PJSIP (pjproject) 2.15, Teluu Inc.: GPL-2.0-or-later. Bundled with it and compiled in: libsrtp 2.5.0 (BSD-3-Clause), Speex (BSD-3-Clause), WebRTC audio processing (BSD-3-Clause), libresample (LGPL-2.1), GSM 06.10 (TU Berlin notice), iLBC (RFC 3951 code) and G.722.1 (Polycom).
+- WireGuardKit (vendored from wireguard-apple) and the wg-quick parser in `PacketTunnel/WgQuickConfig.swift`, WireGuard LLC: MIT.
+- wireguard-go (golang.zx2c4.com/wireguard), WireGuard LLC: MIT.
+- Go runtime and standard library, golang.org/x/crypto, golang.org/x/net and golang.org/x/sys, The Go Authors: BSD-3-Clause.
+
+Apple system frameworks and SF Symbols are not redistributed. `scripts/check-licenses.sh [path/to/SipPhone.app]` checks that LICENSE is complete, that THIRD_PARTY_LICENSES.md names every component in `scripts/third-party-components.txt` and, given an app, that the licence files are bundled.
