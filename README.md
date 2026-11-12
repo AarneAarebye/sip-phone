@@ -1,6 +1,6 @@
 # SIP Phone
 
-Using the app? See [docs/SETUP.md](docs/SETUP.md). Deutsche Anleitung: [docs/SETUP.de.md](docs/SETUP.de.md).
+Using the app? Download `SipPhone.dmg` from the [releases page](https://github.com/AarneAarebye/sip-phone/releases) and see [docs/SETUP.md](docs/SETUP.md). Deutsche Anleitung: [docs/SETUP.de.md](docs/SETUP.de.md).
 
 A macOS menu bar SIP phone for a FRITZ!Box. It registers as an IP telephone on the FRITZ!Box, shows incoming calls as notifications with the name from the FRITZ!Box phone books, lets you place calls, and shows the call history. When you are away from home it reaches the FRITZ!Box through a WireGuard VPN that carries only the home network's traffic (split tunnel).
 
