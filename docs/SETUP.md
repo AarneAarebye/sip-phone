@@ -16,7 +16,7 @@ You need:
 
 ## 2. Getting the app
 
-There is no ready-to-download, notarized version yet. No release has been published so far. For now the app has to be built from source: follow the "Build" section in the [README](../README.md). If a download becomes available, it will be announced in the repository.
+There is no ready-to-download, notarized version yet. The [releases page](https://github.com/AarneAarebye/sip-phone/releases) only has a source-code preview so far. For now the app has to be built from source: follow the "Build" section in the [README](../README.md). If a download becomes available, it will be announced on the releases page.
 
 Once you have `SipPhone.app`:
 
@@ -171,4 +171,4 @@ Limits:
 
 ## 10. Help and bug reports
 
-For questions, bugs and feature requests, use the project repository on GitHub (see the `origin` link of this repository). For developer details, see the [README](../README.md) and [docs/MANUAL_TEST.md](MANUAL_TEST.md).
+For questions, bugs and feature requests, use the project repository on GitHub: https://github.com/AarneAarebye/sip-phone (open an issue there). For developer details, see the [README](../README.md) and [docs/MANUAL_TEST.md](MANUAL_TEST.md).

@@ -18,7 +18,7 @@ Sie benötigen:
 
 ## 2. Die App beschaffen
 
-Es gibt noch keine fertig herunterladbare, notarisierte Version. Bisher wurde kein Release veröffentlicht. Vorerst muss die App aus dem Quellcode gebaut werden: Folgen Sie dem Abschnitt „Build“ in der [README](../README.md). Falls es künftig einen Download gibt, wird dies im Repository bekannt gegeben.
+Es gibt noch keine fertig herunterladbare, notarisierte Version. Auf der [Releases-Seite](https://github.com/AarneAarebye/sip-phone/releases) gibt es bisher nur eine Vorschau des Quellcodes. Vorerst muss die App aus dem Quellcode gebaut werden: Folgen Sie dem Abschnitt „Build“ in der [README](../README.md). Falls es künftig einen Download gibt, wird dies auf der Releases-Seite bekannt gegeben.
 
 Sobald Sie `SipPhone.app` haben:
 
@@ -175,4 +175,4 @@ Einschränkungen:
 
 ## 10. Hilfe und Fehlerberichte
 
-Für Fragen, Fehler und Funktionswünsche nutzen Sie das Projekt-Repository auf GitHub (siehe den `origin`-Link dieses Repositorys). Entwicklerdetails finden Sie in der [README](../README.md) und in [docs/MANUAL_TEST.md](MANUAL_TEST.md).
+Für Fragen, Fehler und Funktionswünsche nutzen Sie das Projekt-Repository auf GitHub: https://github.com/AarneAarebye/sip-phone (dort können Sie ein Issue anlegen). Entwicklerdetails finden Sie in der [README](../README.md) und in [docs/MANUAL_TEST.md](MANUAL_TEST.md).
