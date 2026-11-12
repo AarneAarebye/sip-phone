@@ -50,10 +50,24 @@ public enum WireGuardConfigCheck {
 /// runs as root outside the user session and cannot read the user's (data protection) keychain, so the
 /// app reads the config from its own keychain and hands it over at every start. Consequence: the tunnel
 /// can only be started by this app (a start from System Settings has no options and fails cleanly).
+///
+/// `splitTunnel` tells the extension that the config was rewritten for a split tunnel (see `SplitTunnelConfig`),
+/// so its DNS servers answer only for the home domain instead of every lookup.
 public enum TunnelConfigHandoff {
     static let optionKey = "wgQuickConfig"
-    public static func startOptions(config: String) -> [String: NSObject] { [optionKey: config as NSString] }
+    static let splitTunnelKey = "splitTunnel"
+    public static func startOptions(config: String, splitTunnel: Bool = false) -> [String: NSObject] {
+        var options: [String: NSObject] = [optionKey: config as NSString]
+        if splitTunnel { options[splitTunnelKey] = NSNumber(value: true) }
+        return options
+    }
     public static func config(fromStartOptions options: [String: NSObject]?) -> String? {
         (options?[optionKey] as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
+    public static func isSplitTunnel(startOptions options: [String: NSObject]?) -> Bool {
+        (options?[splitTunnelKey] as? NSNumber)?.boolValue ?? false
+    }
+    /// The DNS domains the tunnel's DNS servers answer for in split mode (the FRITZ!Box's local domain plus
+    /// any search domains of the config); every other lookup uses the Mac's normal DNS.
+    public static let splitDNSDomains = ["fritz.box"]
 }

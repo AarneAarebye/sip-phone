@@ -35,21 +35,23 @@ public enum VPNError: Error, Equatable, LocalizedError {
     func lastDisconnectReason() async -> String?
 }
 
-/// Starts/stops the full-tunnel WireGuard VPN implemented by the PacketTunnel system extension.
+/// Starts/stops the WireGuard VPN implemented by the PacketTunnel system extension: a split tunnel (home
+/// network only) or the config's own routes, as chosen in Settings (read at every start).
 @MainActor
 public final class VPNManager: VPNControlling {
     private let secrets: SecretStore
     private let backend: TunnelBackend
+    private let routing: () -> TunnelRouting
     /// The one shared connect attempt; callers wait on it via `waiters`.
     private var attempt: (id: UUID, task: Task<Void, Never>)?
     private var waiters: [UUID: CheckedContinuation<Void, Error>] = [:]
 
-    public convenience init(secrets: SecretStore, extensionBundleId: String) {
-        self.init(secrets: secrets, backend: SystemTunnelBackend(extensionBundleId: extensionBundleId))
+    public convenience init(secrets: SecretStore, extensionBundleId: String, routing: @escaping () -> TunnelRouting = { .full }) {
+        self.init(secrets: secrets, backend: SystemTunnelBackend(extensionBundleId: extensionBundleId), routing: routing)
     }
 
-    init(secrets: SecretStore, backend: TunnelBackend) {
-        self.secrets = secrets; self.backend = backend
+    init(secrets: SecretStore, backend: TunnelBackend, routing: @escaping () -> TunnelRouting = { .full }) {
+        self.secrets = secrets; self.backend = backend; self.routing = routing
     }
 
     /// Safe to call repeatedly: returns at once when the tunnel is up; concurrent callers join one attempt.
@@ -105,6 +107,9 @@ public final class VPNManager: VPNControlling {
         guard let config = secrets.get(SecretKey.wireguardConfig),
               !config.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw VPNError.notConfigured }
         let endpoint = try WireGuardConfigCheck.validate(config)
+        // Split tunnel: rewritten in memory only, never logged or stored.
+        let route = routing()
+        let handed = route.splitTunnel ? try SplitTunnelConfig.rewrite(config, homeNetwork: route.homeNetwork) : config
 
         try await backend.activateExtension()
         try Task.checkCancellation()
@@ -119,7 +124,7 @@ public final class VPNManager: VPNControlling {
         case .connecting, .reasserting: break   // an earlier start is still in progress: just wait for it
         default:
             try Task.checkCancellation()
-            try backend.start(options: TunnelConfigHandoff.startOptions(config: config))
+            try backend.start(options: TunnelConfigHandoff.startOptions(config: handed, splitTunnel: route.splitTunnel))
         }
 
         let start = ContinuousClock.now
