@@ -85,9 +85,21 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                        sipConfig: {
                            let s = store.load()
                            guard !s.sipUser.isEmpty, let pw = secrets.get(SecretKey.sipPassword) else { return nil }
-                           return SIPConfig(host: s.fritzHost, user: s.sipUser, password: pw)
+                           let media = Self.mediaAddress(s)
+                           return SIPConfig(host: s.fritzHost, user: s.sipUser, password: pw,
+                                            mediaAddressMode: media.mode, mediaBindAddress: media.bind)
                        },
                        phoneBookFailureDetail: { book.failureDetail })
+    }
+
+    /// Effective media-address mode for the next registration: "tunnel interface" needs a tunnel address
+    /// (a utun IPv4 in the home network); without one it falls back to automatic.
+    nonisolated static func mediaAddress(_ s: AppSettings) -> (mode: MediaAddressMode, bind: String?) {
+        guard s.mediaAddressMode == .tunnelInterface else { return (s.mediaAddressMode, nil) }
+        let cidr = s.homeNetworkCIDR.trimmingCharacters(in: .whitespaces)
+        guard let ip = MediaAddress.tunnelAddress(from: MediaAddress.currentIPv4Interfaces(), homeNetwork: cidr.isEmpty ? nil : cidr)
+        else { return (.automatic, nil) }
+        return (.tunnelInterface, ip)
     }
 
     /// Split tunnel and home-network override from Settings (read at every VPN start).

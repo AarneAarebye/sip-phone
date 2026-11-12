@@ -86,6 +86,10 @@ struct SettingsView: View {
                     Text("In-band is the only method that reaches the phone on the FRITZ!Box 6591 Cable. RFC 2833 and SIP INFO are kept for other setups.")
                     Text("Takes effect after Save, also during a call. The in-call keypad shows the result of each press.")
                 }.font(.caption2)
+                Picker("Media address in calls", selection: $s.mediaAddressMode) {
+                    ForEach(MediaAddressMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                Text("For calls over the VPN without audio. Which address the call offers the FRITZ!Box for the audio. Takes effect for the next registration or call after Save (not during a live call). \"Bind media to the tunnel interface\" falls back to Automatic while the VPN is down. Compare the result in the log (category media).").font(.caption2)
                 Text("Last call: \(env.core.lastCallMedia ?? "no call audio yet")")
                     .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
