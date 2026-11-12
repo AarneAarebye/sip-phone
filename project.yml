@@ -5,6 +5,8 @@ options:
 settings:
   base:
     DEVELOPMENT_TEAM: LKF7C4WS72
+    # Development builds: Xcode manages App IDs/profiles (Release overrides this with manual Developer ID signing).
+    CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.9"
   configs:
     # Universal for every target (app, PacketTunnel and the Go bridge), so the Intel iMac is covered.
@@ -25,8 +27,13 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.sipphone
       configs:
+        # Committed entitlements files (not generated): Debug uses the plain packet-tunnel-provider value that
+        # development profiles allow; Release uses the -systemextension value (Developer ID).
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: App/SipPhone.Debug.entitlements
         # Developer ID distribution (scripts/release.sh, docs/RELEASE.md). Debug keeps automatic development signing.
         Release:
+          CODE_SIGN_ENTITLEMENTS: App/SipPhone.entitlements
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
           OTHER_CODE_SIGN_FLAGS: "--timestamp"
@@ -49,16 +56,6 @@ targets:
         CFBundleDisplayName: "SIP Phone"
         LSUIElement: true
         NSMicrophoneUsageDescription: "Needed to make phone calls."
-    entitlements:
-      path: App/SipPhone.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
-        com.apple.security.network.server: true
-        com.apple.security.device.audio-input: true
-        com.apple.developer.system-extension.install: true
-        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
-        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.sipphone"]
 
   PacketTunnel:
     type: system-extension
@@ -71,8 +68,13 @@ targets:
         PRODUCT_MODULE_NAME: PacketTunnel
         SKIP_INSTALL: YES
       configs:
+        # Committed entitlements files (not generated): Debug uses the plain packet-tunnel-provider value that
+        # development profiles allow; Release uses the -systemextension value (Developer ID).
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.Debug.entitlements
         # Developer ID distribution (scripts/release.sh, docs/RELEASE.md). Debug keeps automatic development signing.
         Release:
+          CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
           OTHER_CODE_SIGN_FLAGS: "--timestamp"
@@ -93,14 +95,6 @@ targets:
           NEMachServiceName: "$(TeamIdentifierPrefix)com.aarneaarebye.sipphone.PacketTunnel"
           NEProviderClasses:
             com.apple.networkextension.packet-tunnel: "$(PRODUCT_MODULE_NAME).PacketTunnelProvider"
-    entitlements:
-      path: PacketTunnel/PacketTunnel.entitlements
-      properties:
-        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
-        com.apple.security.network.server: true
-        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.sipphone"]
 
   # External build target as in the WireGuardKit README: runs WireGuardKitGo's Makefile, which builds
   # wireguard-go with the local Go toolchain for every arch in $(ARCHS) and lipo's libwg-go.a into

@@ -37,7 +37,7 @@ To build under a different team or prefix, change `DEVELOPMENT_TEAM`, `bundleIdP
 
 Unit tests: `cd Packages/PhoneKit && swift test`.
 
-A signed build requires Apple provisioning profiles with the Network Extension and System Extension capabilities for both bundle ids. Without them the signed build fails; `xcodebuild -scheme SipPhone -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build` still compiles everything.
+Debug builds use automatic development signing with Xcode-managed profiles and the plain `packet-tunnel-provider` Network Extension value (`App/SipPhone.Debug.entitlements`, `PacketTunnel/PacketTunnel.Debug.entitlements`); Release uses Developer ID signing with the `packet-tunnel-provider-systemextension` value (`*.entitlements`). To get development profiles, run `xcodebuild -scheme SipPhone -destination 'platform=macOS' -configuration Debug -allowProvisioningUpdates build` once, adding `-allowProvisioningDeviceRegistration` to register a new Mac. A Release signed build requires Developer ID provisioning profiles for both bundle ids (see docs/RELEASE.md). Without signing, `xcodebuild -scheme SipPhone -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build` still compiles everything.
 
 ## Releasing
 

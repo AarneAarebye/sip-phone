@@ -23,6 +23,10 @@ At developer.apple.com > Identifiers, two explicit App IDs:
 
 Both entitlement files use the app group `LKF7C4WS72.com.aarneaarebye.sipphone` (team-prefixed macOS form, resolved from `$(TeamIdentifierPrefix)`). If the portal or the profile requires an explicit group, register that id and assign it to both App IDs.
 
+### Debug versus Release entitlements
+
+Debug builds use automatic development signing with Xcode-managed profiles ("Mac Team Provisioning Profile"). Development profiles only allow the plain `packet-tunnel-provider` Network Extension value, so Debug uses `App/SipPhone.Debug.entitlements` and `PacketTunnel/PacketTunnel.Debug.entitlements`. Release (Developer ID) uses `App/SipPhone.entitlements` and `PacketTunnel/PacketTunnel.entitlements` with `packet-tunnel-provider-systemextension`. The files are committed and selected per configuration through `CODE_SIGN_ENTITLEMENTS` in `project.yml` (XcodeGen does not generate them); keep them identical apart from that value. To create the development profiles, run `xcodebuild -scheme SipPhone -destination 'platform=macOS' -configuration Debug -allowProvisioningUpdates build` once, adding `-allowProvisioningDeviceRegistration` to register a new Mac.
+
 ### Provisioning profiles
 
 At developer.apple.com > Profiles, create two profiles of type "Developer ID" (distribution outside the Mac App Store), one per App ID, with exactly these names (they are referenced from `project.yml` and `scripts/release.sh`):
