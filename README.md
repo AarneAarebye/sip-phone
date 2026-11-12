@@ -19,8 +19,8 @@ Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon
 - `PacketTunnel/`: the WireGuard packet tunnel provider, packaged as a system extension.
 - `Packages/PhoneKit/`: Swift package with the logic (`PhoneCore`, `FritzTR064`, `SIPEngine`, `PJBridge`, `VPN`, `SystemAdapters`) and the dev tools `fritzdump` and `siptool`.
 - `Packages/WireGuardKit/`: vendored copy of WireGuardKit from wireguard-apple (MIT). Upstream no longer resolves with Xcode 27, so it is copied here. Its Go bridge is built with the local Go toolchain through a make target.
-- `scripts/build-pjsip.sh`: builds the PJSIP xcframework.
-- `docs/`: design spec and plan (`docs/superpowers/`), `docs/MANUAL_TEST.md`, `scripts/release.sh`, and [docs/RELEASE.md](docs/RELEASE.md) (signing, notarization and distribution).
+- `scripts/build-pjsip.sh`: builds the PJSIP xcframework. `scripts/release.sh`: signed, notarized release build.
+- `docs/`: design spec and plan (`docs/superpowers/`), `docs/MANUAL_TEST.md`, and [docs/RELEASE.md](docs/RELEASE.md) (signing, notarization and distribution).
 
 ## Build
 

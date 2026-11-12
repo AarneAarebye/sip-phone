@@ -29,6 +29,7 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
           PROVISIONING_PROFILE_SPECIFIER: "FritzPhone Developer ID"
     dependencies:
       - package: PhoneKit
@@ -73,6 +74,7 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
           PROVISIONING_PROFILE_SPECIFIER: "FritzPhone PacketTunnel Developer ID"
     dependencies:
       - target: WireGuardGoBridgemacOS   # builds libwg-go.a (Go) before WireGuardKit links

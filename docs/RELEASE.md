@@ -1,6 +1,6 @@
 # Releasing FritzPhone
 
-`scripts/release.sh` produces a universal (arm64 + x86_64), Developer ID signed, notarized and stapled `build/release/FritzPhone.dmg`. The app is distributed outside the Mac App Store; the embedded WireGuard packet tunnel is a system extension, which requires Developer ID provisioning profiles.
+`scripts/release.sh` produces a universal (arm64 + x86_64), Developer ID signed, notarized and stapled `build/release/FritzPhone.dmg` (the app inside and the DMG itself are both signed, notarized and stapled). The app is distributed outside the Mac App Store; the embedded WireGuard packet tunnel is a system extension, which requires Developer ID provisioning profiles.
 
 ## One-time prerequisites
 
@@ -50,7 +50,7 @@ Xcode, `brew install xcodegen go`. The script builds `Packages/PhoneKit/Framewor
 
 ```
 scripts/release.sh                    # full run: archive, export, verify, notarize, staple, DMG, final checks
-scripts/release.sh --skip-notarize    # signed and verified, stops before notarization
+scripts/release.sh --skip-notarize    # signed and verified, builds a signed DMG, no notarization or stapling
 scripts/release.sh --unsigned         # dry run, see below
 ```
 
@@ -63,8 +63,11 @@ The script stops with a message if the certificate, either profile, the notaryto
 3. `xcodebuild -exportArchive` with method `developer-id`, signing style manual, both profiles mapped
 4. `codesign --verify --deep --strict --verbose=2`; checks hardened runtime, Developer ID authority, team id and the Network Extension, System Extension, and audio-input entitlements
 5. `lipo -archs` of the app and extension executables must include arm64 and x86_64
-6. zip with `ditto`, `notarytool submit --wait` (on rejection the script prints `notarytool log`), `stapler staple`
-7. DMG with `hdiutil`, then `spctl -a -t exec -vv` and `stapler validate`
+6. zip with `ditto`, `notarytool submit --wait` (on rejection the script prints `notarytool log`), `stapler staple` the app
+7. DMG with `ditto` staging and `hdiutil`, `codesign --timestamp` with the Developer ID Application identity resolved in the prerequisite check, then notarize (`notarytool submit --wait`, log on failure) and `stapler staple` the DMG
+8. final checks: `spctl -a -t exec -vv` and `stapler validate` on the app, `spctl -a -t open --context context:primary-signature -vv` and `stapler validate` on the DMG (all hard failures)
+
+Signature verification also requires a secure timestamp (`Timestamp=` in `codesign -dvv`) on the app, the extension and the DMG; the Release configuration sets `OTHER_CODE_SIGN_FLAGS = --timestamp` for both targets. With `--skip-notarize` the script ends after step 7's signing and says the DMG is signed but not notarized or stapled; such a DMG is rejected by Gatekeeper on other Macs. Expired provisioning profiles are skipped with a warning during the prerequisite check.
 
 ### Unsigned dry run
 
@@ -95,7 +98,7 @@ macOS 26 Tahoe is the last macOS release that supports Intel Macs. The app deplo
 - Notarization rejected: the script prints the log. Common causes are a missing hardened runtime, a missing secure timestamp, or an unsigned nested binary. Fetch it again with `xcrun notarytool log <submission id> --keychain-profile fritzphone-notary`; the ids are listed by `xcrun notarytool history --keychain-profile fritzphone-notary`.
 - `notarytool history` fails in the prerequisite check: re-run `store-credentials`; the app-specific password may have been revoked.
 - Extension stays "waiting for user approval" or never appears: it is only activated for an app in `/Applications`; check `systemextensionsctl list` and the approval in System Settings.
-- Go build fails inside Xcode: make sure `go` is on the path that Xcode sees (`/opt/homebrew/bin`); run the script from a shell where `go version` works.
+- Go build fails inside Xcode: make sure `go` is on the path that Xcode sees (`/opt/homebrew/bin` on Apple Silicon, `/usr/local/bin` on Intel); run the script from a shell where `go version` works.
 
 ## Status
 
