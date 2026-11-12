@@ -4,3 +4,4 @@ DerivedData/
 *.xcodeproj
 .DS_Store
 Packages/PhoneKit/Frameworks/
+.claude/worktrees/
