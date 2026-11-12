@@ -76,4 +76,60 @@ final class ClientTests: XCTestCase {
         XCTAssertEqual(CertificatePinning.decide(fingerprint: "aa", stored: "aa"), .accept)
         XCTAssertEqual(CertificatePinning.decide(fingerprint: "bb", stored: "aa"), .reject)
     }
+
+    // MARK: Final review fixes (I2)
+
+    func testSOAPDownloadURLsAreRebasedOntoConfiguredHTTPSBase() {
+        let base = URL(string: "https://fritz.box:49443")!
+        let cases: [(String, String?, String)] = [
+            ("https://fritz.box:49443/phonebook.lua?sid=1&pbid=0", nil, "https://fritz.box:49443/phonebook.lua?sid=1&pbid=0"),
+            ("http://fritz.box:49000/phonebook.lua?sid=1", nil, "https://fritz.box:49443/phonebook.lua?sid=1"),
+            ("https://evil.example/steal?sid=1", nil, "https://fritz.box:49443/steal?sid=1"),
+            ("http://user:pw@192.168.178.1:80/calllist.lua?sid=abc#frag", "max=200", "https://fritz.box:49443/calllist.lua?sid=abc&max=200"),
+            ("/calllist.lua", "max=200", "https://fritz.box:49443/calllist.lua?max=200"),
+        ]
+        for (reply, extra, expected) in cases {
+            XCTAssertEqual(FritzTR064Client.rebase(reply, onto: base, extraQuery: extra)?.absoluteString, expected, reply)
+        }
+        XCTAssertNil(FritzTR064Client.rebase("", onto: base))
+    }
+
+    func testForeignHostPhonebookURLIsNotFollowed() async throws {
+        let book = try Data(contentsOf: XCTUnwrap(Bundle.module.url(forResource: "phonebook", withExtension: "xml", subdirectory: "Fixtures")))
+        let transport = FakeTransport { req in
+            let action = req.value(forHTTPHeaderField: "SOAPAction") ?? ""
+            if action.hasSuffix("#GetPhonebookList\"") { return soapReply("GetPhonebookList", ["NewPhonebookList": "0"]) }
+            if action.hasSuffix("#GetPhonebook\"") { return soapReply("GetPhonebook", ["NewPhonebookURL": "http://evil.example:80/pb.lua?sid=9"]) }
+            return book
+        }
+        _ = try await FritzTR064Client(host: "fritz.box", transport: transport).loadContacts()
+        XCTAssertEqual(transport.requests.last?.url?.absoluteString, "https://fritz.box:49443/pb.lua?sid=9")
+    }
+
+    func testCredentialsOnlyOverSecureSpaceAndOnce() {
+        XCTAssertTrue(CertificatePinning.shouldSendCredentials(receivesCredentialSecurely: true, previousFailureCount: 0))
+        XCTAssertFalse(CertificatePinning.shouldSendCredentials(receivesCredentialSecurely: false, previousFailureCount: 0))
+        XCTAssertFalse(CertificatePinning.shouldSendCredentials(receivesCredentialSecurely: true, previousFailureCount: 1))
+    }
+
+    func testErrorsHaveReadableMessages() {
+        let changed = FritzError.certificateChanged.localizedDescription
+        XCTAssertTrue(changed.contains("certificate changed"), changed)
+        XCTAssertTrue(changed.contains("Forget pinned certificate"), changed)
+        XCTAssertEqual(FritzError.http(503).localizedDescription, "The FRITZ!Box answered with HTTP status 503.")
+        XCTAssertTrue(FritzError.unauthorized.localizedDescription.contains("user name or password"))
+        XCTAssertEqual(FritzError.fault(code: "606", description: "Action not authorized").localizedDescription,
+                       "The FRITZ!Box refused the request (606: Action not authorized).")
+    }
+
+    func testFingerprintFormatAndProbeVerdict() {
+        let der = Data("cert".utf8)
+        let fp = CertificatePinning.fingerprint(ofDER: der)
+        XCTAssertEqual(fp, "06298432e8066b29e2223bcc23aa9504b56ae508fabf3435508869b9c3190e22")   // shasum -a 256 format
+        XCTAssertTrue(CertificatePinning.probeMatchesPin(leafDER: der, pinned: fp))
+        XCTAssertTrue(CertificatePinning.probeMatchesPin(leafDER: der, pinned: fp.uppercased()))
+        XCTAssertFalse(CertificatePinning.probeMatchesPin(leafDER: Data("other".utf8), pinned: fp))
+        XCTAssertFalse(CertificatePinning.probeMatchesPin(leafDER: nil, pinned: fp))
+        XCTAssertFalse(CertificatePinning.probeMatchesPin(leafDER: der, pinned: ""))
+    }
 }

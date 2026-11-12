@@ -25,7 +25,7 @@ public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
         var all: [Contact] = []
         for id in list.split(separator: ",").map(String.init) {
             let reply = try await call("GetPhonebook", [("NewPhonebookID", id)])
-            guard let s = reply["NewPhonebookURL"], let url = URL(string: s) else { throw FritzError.missingField("NewPhonebookURL") }
+            guard let s = reply["NewPhonebookURL"], let url = Self.rebase(s, onto: base) else { throw FritzError.missingField("NewPhonebookURL") }
             let contacts = try PhoneBookParser.parse(try await transport.send(URLRequest(url: url)))
             all += contacts.map { Contact(id: "\(id)-\($0.id)", name: $0.name, numbers: $0.numbers) }
         }
@@ -34,7 +34,23 @@ public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
 
     public func loadCallList() async throws -> [CallRecord] {
         let reply = try await call("GetCallList")
-        guard let s = reply["NewCallListURL"], let url = URL(string: s + "&max=200") else { throw FritzError.missingField("NewCallListURL") }
+        guard let s = reply["NewCallListURL"], let url = Self.rebase(s, onto: base, extraQuery: "max=200") else { throw FritzError.missingField("NewCallListURL") }
         return try CallListParser.parse(try await transport.send(URLRequest(url: url)))
+    }
+
+    /// Download URLs from SOAP replies are never fetched as given: only their path and query are kept and put
+    /// onto the configured `https://host:port` base, so an `http://` or foreign-host URL cannot bypass the
+    /// certificate pin or receive the credentials. nil when the reply has no usable path.
+    static func rebase(_ reply: String, onto base: URL, extraQuery: String? = nil) -> URL? {
+        guard let given = URLComponents(string: reply.trimmingCharacters(in: .whitespacesAndNewlines)),
+              !given.percentEncodedPath.isEmpty,
+              var c = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return nil }
+        let path = given.percentEncodedPath
+        c.percentEncodedPath = path.hasPrefix("/") ? path : "/" + path
+        var query = given.percentEncodedQuery.flatMap { $0.isEmpty ? nil : $0 }
+        if let extraQuery { query = query.map { $0 + "&" + extraQuery } ?? extraQuery }
+        c.percentEncodedQuery = query
+        c.fragment = nil
+        return c.url
     }
 }

@@ -26,7 +26,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
     }
 
     private func current() throws -> FritzTR064Client {
-        guard let c = credentials() else { throw FritzError.missingField("TR-064 login") }
+        guard let c = credentials() else { throw FritzError.notConfigured }
         let k = [c.host, c.user, c.password].joined(separator: "\u{1F}")
         return lock.withLock {
             if let client, key == k { return client }

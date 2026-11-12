@@ -18,6 +18,24 @@ public enum CertificatePinning {
         guard let stored else { return .acceptAndStore }
         return stored == fingerprint ? .accept : .reject
     }
+
+    /// Lower-case hex SHA-256 of a DER certificate: the stored pin format.
+    public static func fingerprint(ofDER der: Data) -> String {
+        SHA256.hash(data: der).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Reachability probe verdict: the listener counts as OUR FRITZ!Box only if its leaf certificate
+    /// matches the stored pin (a different box on a visited network must not stop the VPN from starting).
+    public static func probeMatchesPin(leafDER: Data?, pinned: String) -> Bool {
+        guard let leafDER, !pinned.isEmpty else { return false }
+        return fingerprint(ofDER: leafDER) == pinned.lowercased()
+    }
+
+    /// HTTP credentials are only handed out over a protection space that receives them securely (https),
+    /// and only once per challenge.
+    public static func shouldSendCredentials(receivesCredentialSecurely: Bool, previousFailureCount: Int) -> Bool {
+        receivesCredentialSecurely && previousFailureCount == 0
+    }
 }
 
 /// URLSession-backed transport: HTTP digest auth via challenge handling, trust-on-first-use certificate pinning.
@@ -26,6 +44,7 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionDeleg
     private let pins: PinStore
     private var session: URLSession!
     private let lock = NSLock()
+    /// Sticky until a later trust evaluation succeeds, so concurrent sends cannot mask a pin rejection.
     private var pinRejected = false
 
     public init(username: String, password: String, pins: PinStore) {
@@ -40,7 +59,6 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionDeleg
     public func invalidate() { session.invalidateAndCancel() }
 
     public func send(_ request: URLRequest) async throws -> Data {
-        lock.withLock { pinRejected = false }
         do {
             let (data, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -63,17 +81,23 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionDeleg
                   let leaf = (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first else {
                 completionHandler(.cancelAuthenticationChallenge, nil); return
             }
-            let fp = SHA256.hash(data: SecCertificateCopyData(leaf) as Data).map { String(format: "%02x", $0) }.joined()
+            let fp = CertificatePinning.fingerprint(ofDER: SecCertificateCopyData(leaf) as Data)
             switch CertificatePinning.decide(fingerprint: fp, stored: pins.load()) {
-            case .acceptAndStore: pins.save(fp); completionHandler(.useCredential, URLCredential(trust: trust))
-            case .accept: completionHandler(.useCredential, URLCredential(trust: trust))
+            case .acceptAndStore:
+                pins.save(fp); lock.withLock { pinRejected = false }
+                completionHandler(.useCredential, URLCredential(trust: trust))
+            case .accept:
+                lock.withLock { pinRejected = false }
+                completionHandler(.useCredential, URLCredential(trust: trust))
             case .reject:
                 lock.withLock { pinRejected = true }
                 completionHandler(.cancelAuthenticationChallenge, nil)
             }
         case NSURLAuthenticationMethodHTTPDigest, NSURLAuthenticationMethodHTTPBasic:
-            if challenge.previousFailureCount > 0 { completionHandler(.cancelAuthenticationChallenge, nil) }
-            else { completionHandler(.useCredential, URLCredential(user: username, password: password, persistence: .forSession)) }
+            if CertificatePinning.shouldSendCredentials(receivesCredentialSecurely: space.receivesCredentialSecurely,
+                                                        previousFailureCount: challenge.previousFailureCount) {
+                completionHandler(.useCredential, URLCredential(user: username, password: password, persistence: .forSession))
+            } else { completionHandler(.cancelAuthenticationChallenge, nil) }
         default:
             completionHandler(.performDefaultHandling, nil)
         }

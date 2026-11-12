@@ -1,11 +1,27 @@
 import Foundation
 import PhoneCore
 
-public enum FritzError: Error, Equatable {
-    case malformedXML, unauthorized, certificateChanged
+public enum FritzError: Error, Equatable, LocalizedError {
+    case malformedXML, unauthorized, certificateChanged, notConfigured
     case http(Int)
     case fault(code: String, description: String)
     case missingField(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .malformedXML: return "The FRITZ!Box sent a reply that could not be read."
+        case .unauthorized: return "The FRITZ!Box rejected the TR-064 user name or password."
+        case .certificateChanged:
+            return "The FRITZ!Box certificate changed since it was first trusted, so the connection was refused. "
+                + "If you replaced or reset your FRITZ!Box, click \"Forget pinned certificate\" in Settings; "
+                + "otherwise someone may be intercepting the connection."
+        case .notConfigured: return "TR-064 login not set up. Open Settings."
+        case .http(let code): return "The FRITZ!Box answered with HTTP status \(code)."
+        case .fault(let code, let description):
+            return "The FRITZ!Box refused the request (\(code)\(description.isEmpty ? "" : ": " + description))."
+        case .missingField(let field): return "The FRITZ!Box reply did not contain \(field)."
+        }
+    }
 }
 
 public enum PhoneBookParser {
