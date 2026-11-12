@@ -20,7 +20,7 @@ Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon
 - `Packages/PhoneKit/`: Swift package with the logic (`PhoneCore`, `FritzTR064`, `SIPEngine`, `PJBridge`, `VPN`, `SystemAdapters`) and the dev tools `fritzdump` and `siptool`.
 - `Packages/WireGuardKit/`: vendored copy of WireGuardKit from wireguard-apple (MIT). Upstream no longer resolves with Xcode 27, so it is copied here. Its Go bridge is built with the local Go toolchain through a make target.
 - `scripts/build-pjsip.sh`: builds the PJSIP xcframework.
-- `docs/`: design spec and plan (`docs/superpowers/`), `docs/MANUAL_TEST.md`, and `docs/RELEASE.md` (planned, not written yet: signing, notarization and distribution).
+- `docs/`: design spec and plan (`docs/superpowers/`), `docs/MANUAL_TEST.md`, `scripts/release.sh`, and [docs/RELEASE.md](docs/RELEASE.md) (signing, notarization and distribution).
 
 ## Build
 
@@ -38,6 +38,10 @@ To build under a different team or prefix, change `DEVELOPMENT_TEAM`, `bundleIdP
 Unit tests: `cd Packages/PhoneKit && swift test`.
 
 A signed build requires Apple provisioning profiles with the Network Extension and System Extension capabilities for both bundle ids. Without them the signed build fails; `xcodebuild -scheme FritzPhone -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build` still compiles everything.
+
+## Releasing
+
+`scripts/release.sh` builds a universal, Developer ID signed, notarized and stapled `build/release/FritzPhone.dmg`. `scripts/release.sh --unsigned` is a dry run (archive plus universal check, no signing). Prerequisites (certificate, two provisioning profiles, notarytool profile) and troubleshooting are in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## VPN (system extension)
 

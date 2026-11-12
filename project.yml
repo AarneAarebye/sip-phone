@@ -11,6 +11,7 @@ settings:
     Release:
       ARCHS: "arm64 x86_64"
       ONLY_ACTIVE_ARCH: NO
+      ENABLE_HARDENED_RUNTIME: YES
 packages:
   PhoneKit: { path: Packages/PhoneKit }
   # Vendored copy of wireguard-apple's WireGuardKit (upstream manifest no longer resolves; see its Package.swift).
@@ -23,6 +24,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.fritzphone
+      configs:
+        # Developer ID distribution (scripts/release.sh, docs/RELEASE.md). Debug keeps automatic development signing.
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          PROVISIONING_PROFILE_SPECIFIER: "FritzPhone Developer ID"
     dependencies:
       - package: PhoneKit
         product: PhoneCore
@@ -61,6 +68,12 @@ targets:
         PRODUCT_NAME: com.aarneaarebye.fritzphone.PacketTunnel   # sysext bundle name must be <bundle id>.systemextension
         PRODUCT_MODULE_NAME: PacketTunnel
         SKIP_INSTALL: YES
+      configs:
+        # Developer ID distribution (scripts/release.sh, docs/RELEASE.md). Debug keeps automatic development signing.
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          PROVISIONING_PROFILE_SPECIFIER: "FritzPhone PacketTunnel Developer ID"
     dependencies:
       - target: WireGuardGoBridgemacOS   # builds libwg-go.a (Go) before WireGuardKit links
       - package: WireGuardKit
