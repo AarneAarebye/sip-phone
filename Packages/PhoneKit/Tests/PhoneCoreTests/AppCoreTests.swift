@@ -133,7 +133,7 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         let r = makeRig(reach: [true])
         await r.core.start()
         r.core.dial("030 1234")
-        XCTAssertEqual(r.sip.dialed, ["030 1234"])
+        XCTAssertEqual(r.sip.dialed, ["0301234"])
         XCTAssertEqual(r.core.activeCall?.state, .calling)
         r.core.handle(.callState(id: 7, .ended(code: 200, reason: "OK")))
         await r.core.waitForCallCleanup()
@@ -355,6 +355,22 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         await r.core.start()
         await r.core.shutdown()
         XCTAssertEqual(r.vpn.disconnectCalls, 1)
+    }
+    func testDialRejectsInvalidNumbersWithoutDialling() async {               // I1
+        let r = makeRig(reach: [true])
+        await r.core.start()
+        for bad in ["x@evil.example;transport=tcp", "", "030\n1234", "sip:1@host"] {
+            r.core.clearError()
+            r.core.dial(bad)
+            XCTAssertEqual(r.core.lastError, "Invalid number", bad)
+        }
+        XCTAssertTrue(r.sip.dialed.isEmpty)
+        XCTAssertNil(r.core.activeCall)
+        r.core.clearError()
+        r.core.dial("+49 (0)30 1234")
+        XCTAssertEqual(r.sip.dialed, ["+49301234"])
+        XCTAssertEqual(r.core.activeCall?.displayName, "Erika")
+        XCTAssertNil(r.core.lastError)
     }
     func testSIPConfigDescriptionRedactsPassword() {
         let c = SIPConfig(host: "h", user: "u", password: "s3cret")

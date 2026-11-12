@@ -5,7 +5,7 @@ public enum NumberMatcher {
 
     /// Digits-only form with country code, e.g. "+49 30 1234" and "030 1234" -> "49301234".
     public static func normalize(_ raw: String, countryCode: String = "49", areaCode: String? = nil) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        let trimmed = DialString.clean(raw)
         let d = digits(trimmed)
         if d.isEmpty { return "" }
         if trimmed.hasPrefix("+") { return d }

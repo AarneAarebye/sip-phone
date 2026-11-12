@@ -239,7 +239,8 @@ public final class AppCore {
 
     // MARK: Calls
 
-    public func dial(_ number: String) {
+    public func dial(_ raw: String) {
+        guard let number = DialString.dialable(raw) else { lastError = "Invalid number"; return }
         if let c = activeCall, !isEnded(c) { lastError = "Already in a call"; return }
         guard connection == .ready else { lastError = "Not connected"; return }
         do {

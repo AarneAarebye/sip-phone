@@ -57,7 +57,8 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
     }
 
     public func dial(_ number: String) throws -> Int {
-        do { return try bridge.dial(number).intValue }
+        guard let clean = DialString.dialable(number) else { throw SIPError.failed("Invalid number") }
+        do { return try bridge.dial(clean).intValue }
         catch { throw SIPError.failed(error.localizedDescription) }
     }
     public func answer(_ callId: Int) { bridge.answer(callId) }
@@ -101,7 +102,7 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
     }
     public nonisolated func incomingCall(_ callId: Int, from remote: String, called: String) {
         MainActor.assumeIsolated {
-            continuation.yield(.incomingCall(id: callId, remote: Self.userPart(of: remote), called: Self.calledNumber(from: called)))
+            _ = continuation.yield(.incomingCall(id: callId, remote: Self.userPart(of: remote), called: Self.calledNumber(from: called)))
         }
     }
 
