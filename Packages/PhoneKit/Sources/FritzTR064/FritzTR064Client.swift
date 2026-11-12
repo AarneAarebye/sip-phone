@@ -20,6 +20,26 @@ public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
         return try SOAP.parseResponse(try await transport.send(req))
     }
 
+    /// Sanitized record of the transport's most recent request (see `TransportDiagnostics`).
+    public var lastDiagnostics: TransportDiagnostics? { transport.lastDiagnostics }
+
+    /// Login test: reads model and FRITZ!OS version from the unauthenticated `/tr64desc.xml` (best effort),
+    /// then makes one authenticated call (`GetPhonebookList`) through the normal code path.
+    public func checkLogin() async -> TR064LoginCheck {
+        var model: String?, firmware: String?
+        if let desc = try? await transport.send(URLRequest(url: base.appendingPathComponent("tr64desc.xml"))),
+           let fields = try? SOAP.parseResponse(desc) {
+            model = fields["modelName"].map { TransportDiagnostics.clean($0, max: 60) }
+            firmware = fields["Display"].map { TransportDiagnostics.clean($0, max: 30) }
+        }
+        var failure: Error?
+        do { _ = try await call("GetPhonebookList") } catch { failure = error }
+        let d = lastDiagnostics
+        return TR064LoginCheck(verdict: TR064Diagnosis.verdict(diagnostics: d, error: failure), diagnostics: d,
+                               errorDescription: failure.map { TransportDiagnostics.clean($0.localizedDescription, max: 300) },
+                               model: model, firmware: firmware)
+    }
+
     public func loadContacts() async throws -> [Contact] {
         let list = try await call("GetPhonebookList")["NewPhonebookList"] ?? "0"
         var all: [Contact] = []

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import PhoneCore
 
 struct SettingsView: View {
@@ -15,6 +16,8 @@ struct SettingsView: View {
     @State private var wgStored = false
     @State private var replacingWG = false
     @State private var confirmRemoveWG = false
+    @State private var testingLogin = false
+    @State private var loginReport: String?
 
     private func refreshStored() {
         sipStored = env.isStored(SecretKey.sipPassword)
@@ -50,6 +53,27 @@ struct SettingsView: View {
                     }.disabled(!hasPin)
                 }
                 Text("Only after replacing or resetting your FRITZ!Box. The next connection's certificate is trusted.").font(.caption2)
+            }
+            Section("Diagnostics") {
+                HStack {
+                    Button("Test TR-064 login") {
+                        testingLogin = true
+                        Task { loginReport = await env.testTR064Login(); testingLogin = false }
+                    }.disabled(testingLogin)
+                    if testingLogin { ProgressView().controlSize(.small) }
+                    Spacer()
+                    if let loginReport, !testingLogin {
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(loginReport, forType: .string)
+                        }
+                    }
+                }
+                Text("Uses the saved settings and Keychain password. The result contains no user name or password.").font(.caption2)
+                if let loginReport {
+                    Text(loginReport).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                }
             }
             Section("Numbers") {
                 TextField("Country code", text: $s.countryCode)

@@ -116,6 +116,19 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         XCTAssertNotNil(r.core.phoneBookNotice)
         XCTAssertEqual(r.core.connection, .ready)
     }
+    func testPhoneBookFailureNoticeAppendsTransportDetail() async {
+        let sip = FakeSIP(), book = FakeBook(), cache = FakeCache()
+        book.fail = true
+        let core = AppCore(sip: sip, phoneBook: book, vpn: FakeVPN(), reachability: FakeReach([true]), power: FakePower(),
+                           cache: cache, settings: AppSettings(),
+                           sipConfig: { SIPConfig(host: "fritz.box", user: "u", password: "p") },
+                           phoneBookFailureDetail: { "HTTP 401 after Digest challenge, credentials offered" },
+                           sleep: { _ in await Task.yield() })
+        await core.refreshPhoneBook()
+        let notice = try? XCTUnwrap(core.phoneBookNotice)
+        XCTAssertTrue(notice?.hasPrefix("Phone book unavailable (") ?? false)
+        XCTAssertTrue(notice?.hasSuffix("; showing saved copy. (HTTP 401 after Digest challenge, credentials offered)") ?? false, notice ?? "")
+    }
     func testIncomingCallResolvesNameFromPhoneBook() async {
         let r = makeRig(reach: [true])
         await r.core.start()

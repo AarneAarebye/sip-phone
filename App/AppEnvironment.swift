@@ -23,22 +23,36 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
     private var key: String?
     private var transport: URLSessionTransport?
     private var client: FritzTR064Client?
+    /// The client used by the latest call; nil when that call found TR-064 not configured.
+    private var lastUsed: FritzTR064Client?
 
     init(pins: PinStore, credentials: @escaping @Sendable () -> (host: String, user: String, password: String)?) {
         self.pins = pins; self.credentials = credentials
     }
 
     private func current() throws -> FritzTR064Client {
-        guard let c = credentials() else { throw FritzError.notConfigured }
+        guard let c = credentials() else {
+            lock.withLock { lastUsed = nil }
+            throw FritzError.notConfigured
+        }
         let k = [c.host, c.user, c.password].joined(separator: "\u{1F}")
         return lock.withLock {
-            if let client, key == k { return client }
+            if let client, key == k { lastUsed = client; return client }
             transport?.invalidate()
             let t = URLSessionTransport(username: c.user, password: c.password, pins: pins)
             let cl = FritzTR064Client(host: c.host, transport: t)
-            transport = t; client = cl; key = k
+            transport = t; client = cl; key = k; lastUsed = cl
             return cl
         }
+    }
+
+    /// Short, sanitized summary of the latest TR-064 request (for the phone-book failure notice).
+    var failureDetail: String? { lock.withLock { lastUsed }?.lastDiagnostics?.shortSummary }
+
+    /// Settings "Test TR-064 login": one authenticated call through the same cached client and credentials.
+    func checkLogin() async -> TR064LoginCheck {
+        do { return try await current().checkLogin() }
+        catch { return TR064LoginCheck(verdict: .notConfigured, diagnostics: nil, errorDescription: error.localizedDescription) }
     }
     func loadContacts() async throws -> [Contact] { try await current().loadContacts() }
     func loadCallList() async throws -> [CallRecord] { try await current().loadCallList() }
@@ -49,6 +63,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
     let secrets: SecretStore = KeychainSecretStore()
     let core: AppCore
     let pinStore = UserDefaultsPinStore()
+    private let phoneBook: LivePhoneBook
     /// Held for the app lifetime: the IOPS run-loop callback keeps an unretained pointer to it.
     lazy var monitors = SystemMonitors(core: core)
 
@@ -59,6 +74,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
             guard !s.tr064User.isEmpty, let pw = secrets.get(SecretKey.tr064Password) else { return nil }
             return (s.fritzHost, s.tr064User, pw)
         }
+        phoneBook = book
         core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.sipphone.PacketTunnel"),
                        reachability: FritzBoxReachability(host: { store.load().fritzHost }, pinned: { pins.load() }),
                        power: IOKitPowerAssertion(), cache: JSONFileContactCache.standard(), settings: store.load(),
@@ -66,7 +82,8 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                            let s = store.load()
                            guard !s.sipUser.isEmpty, let pw = secrets.get(SecretKey.sipPassword) else { return nil }
                            return SIPConfig(host: s.fritzHost, user: s.sipUser, password: pw)
-                       })
+                       },
+                       phoneBookFailureDetail: { book.failureDetail })
     }
 
     /// Whether a secret is stored in the Keychain (never reads the value).
@@ -77,6 +94,9 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
         do { try secrets.set(nil, for: key); return nil }
         catch { return "Could not remove the item from the Keychain: \(error.localizedDescription)" }
     }
+
+    /// Runs the TR-064 login test with the saved settings and Keychain password; returns sanitized text.
+    func testTR064Login() async -> String { await phoneBook.checkLogin().text }
 
     var hasPinnedCertificate: Bool { pinStore.load() != nil }
 

@@ -31,6 +31,7 @@ public final class AppCore {
     @ObservationIgnored private let power: PowerAssertionControlling
     @ObservationIgnored private let cache: ContactCache
     @ObservationIgnored private let sipConfig: () -> SIPConfig?
+    @ObservationIgnored private let phoneBookFailureDetail: () -> String?
     @ObservationIgnored private let sleep: @Sendable (TimeInterval) async -> Void
     @ObservationIgnored private var index = PhoneBookIndex(contacts: [])
     @ObservationIgnored private var startedVPN = false
@@ -49,9 +50,11 @@ public final class AppCore {
     public init(sip: SIPEngine, phoneBook: PhoneBookService, vpn: VPNControlling, reachability: Reachability,
                 power: PowerAssertionControlling, cache: ContactCache, settings: AppSettings,
                 sipConfig: @escaping () -> SIPConfig?,
+                phoneBookFailureDetail: @escaping () -> String? = { nil },
                 sleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) {
         self.sip = sip; self.phoneBook = phoneBook; self.vpn = vpn; self.reachability = reachability
         self.power = power; self.cache = cache; self.settings = settings; self.sipConfig = sipConfig; self.sleep = sleep
+        self.phoneBookFailureDetail = phoneBookFailureDetail
         contacts = cache.load()   // offline still shows the saved book
         rebuildIndex()
     }
@@ -174,6 +177,7 @@ public final class AppCore {
         } catch {
             contacts = cache.load(); rebuildIndex()
             phoneBookNotice = "Phone book unavailable (\(error.localizedDescription)); showing saved copy."
+                + (phoneBookFailureDetail().map { " (\($0))" } ?? "")   // short, sanitized transport detail
         }
     }
 
