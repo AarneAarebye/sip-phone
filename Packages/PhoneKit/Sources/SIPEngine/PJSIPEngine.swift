@@ -64,7 +64,20 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
     public func answer(_ callId: Int) { bridge.answer(callId) }
     public func hangup(_ callId: Int) { bridge.hangup(callId) }
     public func setMuted(_ muted: Bool) { bridge.setMuted(muted) }
-    public func sendDTMF(_ digits: String, callId: Int) { bridge.sendDTMF(digits, callId: callId) }
+    public func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome] {
+        method.wireMethods.map { m in
+            do { try bridge.sendDTMF(digits, callId: callId, method: Self.bridgeMethod(m)); return DTMFOutcome(method: m) }
+            catch { return DTMFOutcome(method: m, error: error.localizedDescription) }
+        }
+    }
+
+    nonisolated static func bridgeMethod(_ m: DTMFMethod) -> PJDTMFMethod {
+        switch m {
+        case .rfc2833, .both: return .RFC2833   // .both never reaches here (wireMethods splits it)
+        case .sipInfo: return .sipInfo
+        case .inband: return .inband
+        }
+    }
 
     // MARK: PJBridgeDelegate (always invoked on the main thread)
 
@@ -122,6 +135,18 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
             }
             continuation.yield(.callState(id: callId, s))
         }
+    }
+
+    public nonisolated func callMediaActive(_ callId: Int, remoteEventPT remotePT: Int, localEventPT localPT: Int, codec: String) {
+        MainActor.assumeIsolated {
+            continuation.yield(.callMedia(id: callId, Self.mediaInfo(remotePT: remotePT, localPT: localPT, codec: codec)))
+        }
+    }
+
+    /// pjmedia uses a negative payload type for "telephone-event not negotiated".
+    nonisolated static func mediaInfo(remotePT: Int, localPT: Int, codec: String) -> CallMediaInfo {
+        CallMediaInfo(remoteTelephoneEventPT: remotePT >= 0 ? remotePT : nil,
+                      localTelephoneEventPT: localPT >= 0 ? localPT : nil, codec: codec)
     }
 
     /// "\"Name\" <sip:0301234@fritz.box>" -> "0301234"

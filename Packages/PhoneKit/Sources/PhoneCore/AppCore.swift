@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 @MainActor @Observable
 public final class AppCore {
@@ -14,6 +15,11 @@ public final class AppCore {
         public var state: CallState
         public var serial: Int
         public var muted = false
+        /// Negotiated telephone-event info, once the audio is active.
+        public var media: CallMediaInfo?
+        /// Outcome of the last keypad press (never the digits); `dtmfSerial` increments with every press.
+        public var dtmfStatus: String?
+        public var dtmfSerial = 0
     }
 
     public private(set) var connection: Connection = .starting
@@ -23,6 +29,8 @@ public final class AppCore {
     public private(set) var phoneBookNotice: String?
     public private(set) var lastError: String?
     public private(set) var settings: AppSettings
+    /// Telephone-event summary of the most recent call's audio (Settings > Diagnostics); survives the call.
+    public private(set) var lastCallMedia: String?
 
     @ObservationIgnored private let sip: SIPEngine
     @ObservationIgnored private let phoneBook: PhoneBookService
@@ -206,6 +214,11 @@ public final class AppCore {
                     Task { [weak self] in await self?.handleWake() }
                 }
             }
+        case .callMedia(let id, let info):
+            guard activeCall?.id == id else { return }
+            activeCall?.media = info
+            lastCallMedia = info.summary
+            DTMFLog.logger.info("Call media active: \(info.summary, privacy: .public)")
         case .registration(.registered):
             guard connection != .authFailed else { return }
             cancelReconnect(); connection = .ready
@@ -307,7 +320,36 @@ public final class AppCore {
         guard var c = activeCall else { return }
         c.muted.toggle(); activeCall = c; sip.setMuted(c.muted)
     }
-    public func sendDTMF(_ digits: String) { if let c = activeCall { sip.sendDTMF(digits, callId: c.id) } }
+    /// Sends keypad digits with the method chosen in Settings and records the outcome on the call.
+    /// The digits themselves are never logged, stored or shown (they may be PINs).
+    public func sendDTMF(_ digits: String) {
+        let clean = digits.filter { Self.dtmfCharacters.contains($0) }
+        let method = settings.dtmfMethod
+        guard !clean.isEmpty else { DTMFLog.logger.info("DTMF ignored: no sendable digit"); return }
+        guard var c = activeCall else {
+            DTMFLog.logger.error("DTMF dropped: no active call (count \(clean.count, privacy: .public))"); return
+        }
+        let outcomes = sip.sendDTMF(clean, callId: c.id, method: method)
+        for o in outcomes {
+            if let e = o.error {
+                DTMFLog.logger.error("DTMF failed: count \(clean.count, privacy: .public), method \(o.method.label, privacy: .public), \(e, privacy: .public)")
+            } else {
+                DTMFLog.logger.info("DTMF sent: count \(clean.count, privacy: .public), method \(o.method.label, privacy: .public)")
+            }
+        }
+        c.dtmfStatus = Self.dtmfStatus(count: clean.count, outcomes: outcomes)
+        c.dtmfSerial += 1
+        activeCall = c
+    }
+    static let dtmfCharacters: Set<Character> = Set("0123456789*#ABCD")
+
+    static func dtmfStatus(count: Int, outcomes: [DTMFOutcome]) -> String {
+        let noun = count == 1 ? "Tone" : "\(count) tones"
+        guard !outcomes.isEmpty else { return "\(noun) not sent: no result from the engine" }
+        return outcomes.map { o in
+            o.error.map { "\(noun) failed (\(o.method.label)): \($0)" } ?? "\(noun) sent via \(o.method.label)"
+        }.joined(separator: " · ")
+    }
     public func clearError() { lastError = nil }
     public func reportError(_ message: String) { lastError = message }
 
@@ -316,4 +358,8 @@ public final class AppCore {
     public func updateSettings(_ s: AppSettings) { settings = s; rebuildIndex(); applyPower() }
     public func powerSourceChanged(onAC: Bool) { self.onAC = onAC; applyPower() }
     private func applyPower() { power.setPreventSleep(onAC && settings.keepAwakeOnPower) }
+}
+
+enum DTMFLog {
+    static let logger = Logger(subsystem: "com.aarneaarebye.sipphone", category: "dtmf")
 }

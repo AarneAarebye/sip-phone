@@ -5,6 +5,9 @@ struct InCallView: View {
     let core: AppCore
     @State private var showKeypad = false
     @State private var connectedAt: Date?
+    /// Transient outcome of the last keypad press (never the digits).
+    @State private var dtmfCaption: String?
+    @State private var dtmfFailed = false
     private let notice = MicNotice.shared
 
     var body: some View {
@@ -30,7 +33,17 @@ struct InCallView: View {
                         }
                         Button { showKeypad.toggle() } label: { Label("Keypad", systemImage: "circle.grid.3x3.fill") }
                     }
-                    if showKeypad { DialPadView { core.sendDTMF($0) } }
+                    if showKeypad {
+                        DialPadView { core.sendDTMF($0) }
+                        if let dtmfCaption {
+                            Text(dtmfCaption).font(.caption).foregroundStyle(dtmfFailed ? .red : .secondary)
+                                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let media = call.media {
+                            Text(media.summary).font(.caption2).foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
                 HStack(spacing: 16) {
                     if call.isIncoming && call.state == .ringing {
@@ -47,7 +60,18 @@ struct InCallView: View {
             .onChange(of: call.state) { _, s in
                 if s == .connected { connectedAt = Date() }
             }
-            .onChange(of: call.serial) { _, _ in connectedAt = nil; showKeypad = false; notice.incoming = nil }
+            .onChange(of: call.serial) { _, _ in
+                connectedAt = nil; showKeypad = false; notice.incoming = nil; dtmfCaption = nil
+            }
+            .task(id: call.dtmfSerial) {
+                // A new press replaces the caption; a success fades after a few seconds, a failure stays.
+                guard call.dtmfSerial > 0, let status = core.activeCall?.dtmfStatus else { return }
+                dtmfCaption = status
+                dtmfFailed = status.contains("failed") || status.contains("not sent")
+                guard !dtmfFailed else { return }
+                try? await Task.sleep(for: .seconds(4))
+                if !Task.isCancelled { dtmfCaption = nil }
+            }
         }
     }
 

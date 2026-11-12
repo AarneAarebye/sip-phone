@@ -27,7 +27,12 @@ actor Gate {
     func answer(_ id: Int) { answered.append(id) }
     func hangup(_ id: Int) { hangups.append(id) }
     func setMuted(_ muted: Bool) { muteCalls.append(muted) }
-    func sendDTMF(_ digits: String, callId: Int) {}
+    var dtmfSent: [(digits: String, callId: Int, method: DTMFMethod)] = []
+    var dtmfErrors: [DTMFMethod: String] = [:]
+    func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome] {
+        dtmfSent.append((digits, callId, method))
+        return method.wireMethods.map { DTMFOutcome(method: $0, error: dtmfErrors[$0]) }
+    }
 }
 @MainActor final class FakeVPN: VPNControlling {
     var connectCalls = 0, disconnectCalls = 0

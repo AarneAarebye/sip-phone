@@ -74,6 +74,19 @@ struct SettingsView: View {
                     Text(loginReport).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
                 }
+                Picker("Keypad tone method", selection: $s.dtmfMethod) {
+                    ForEach(DTMFMethod.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("RFC 2833: tones as RTP telephone-events (default).")
+                    Text("SIP INFO: each tone as a SIP INFO message.")
+                    Text("RFC 2833 + SIP INFO: both, for testing only (the remote side may hear a tone twice).")
+                    Text("In-band audio: tones mixed into the call audio.")
+                    Text("Takes effect after Save, also during a call. The in-call keypad shows the result of each press.")
+                }.font(.caption2)
+                Text("Last call: \(env.core.lastCallMedia ?? "no call audio yet")")
+                    .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
             }
             Section("Numbers") {
                 TextField("Country code", text: $s.countryCode)

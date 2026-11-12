@@ -17,4 +17,17 @@ final class PJBridgeSmokeTests: XCTestCase {
             XCTAssertEqual(($0 as NSError).localizedDescription, "Not registered")
         }
     }
+
+    /// DTMF failures are reported, not swallowed, and the error never echoes the digits.
+    func testSendDTMFToUnknownCallReportsError() {
+        let bridge = PJBridge()
+        for m in [PJDTMFMethod.RFC2833, .sipInfo, .inband] {
+            XCTAssertThrowsError(try bridge.sendDTMF("4711", callId: 42, method: m)) {
+                let e = $0 as NSError
+                XCTAssertEqual(e.domain, PJBridgeErrorDomain)
+                XCTAssertTrue(e.localizedDescription.hasPrefix("Call not found"), e.localizedDescription)
+                XCTAssertFalse(e.localizedDescription.contains("4711"))
+            }
+        }
+    }
 }

@@ -12,7 +12,17 @@ using namespace pj;
 - (void)handleCallState:(int)callId;
 - (void)applyMuteToCapture;
 - (void)endAllCallsWithReason:(NSString *)reason;
+- (void)reportMediaOfCall:(int)callId streamInfo:(const StreamInfo &)si;
 @end
+
+NSString *const PJBridgeErrorDomain = @"PJSIP";
+
+/// Status code plus PJSIP reason text. Never include the digits.
+static NSError *PJStatusError(pj_status_t status, const std::string &reason) {
+    NSString *r = [NSString stringWithUTF8String:reason.c_str()] ?: @"unknown error";
+    return [NSError errorWithDomain:PJBridgeErrorDomain code:status
+                           userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ [status %d]", r, (int)status]}];
+}
 
 class BridgeAccount : public Account {
 public:
@@ -36,13 +46,43 @@ public:
                     AudDevManager &mgr = Endpoint::instance().audDevManager();
                     aud->startTransmit(mgr.getPlaybackDevMedia());
                     mgr.getCaptureDevMedia().startTransmit(*aud);
+                    if (toneGen_) { try { toneGen_->startTransmit(*aud); } catch (Error &) {} }   // re-INVITE: new port
+                    try { [owner_ reportMediaOfCall:getId() streamInfo:getStreamInfo(i)]; } catch (Error &) {}
                 }
             }
         } catch (Error &) {}
         [owner_ applyMuteToCapture];
     }
+
+    /// In-band DTMF: a per-call tone generator connected to the call's active audio port.
+    void playInband(const std::string &digits) {
+        AudioMedia *aud = nullptr;
+        CallInfo ci = getInfo();
+        for (unsigned i = 0; i < ci.media.size(); i++) {
+            if (ci.media[i].type == PJMEDIA_TYPE_AUDIO && ci.media[i].status == PJSUA_CALL_MEDIA_ACTIVE) {
+                aud = static_cast<AudioMedia *>(getMedia(i)); break;
+            }
+        }
+        if (!aud) throw Error(PJ_EINVALIDOP, "playInband", "No active audio media", __FILE__, __LINE__);
+        if (!toneGen_) {
+            std::unique_ptr<ToneGenerator> gen(new ToneGenerator);
+            // Same clock rate as the conference bridge (slot 0 is the sound device port).
+            pjsua_conf_port_info bridgeInfo;
+            unsigned rate = pjsua_conf_get_port_info(0, &bridgeInfo) == PJ_SUCCESS ? bridgeInfo.clock_rate : 16000;
+            gen->createToneGenerator(rate, 1);
+            gen->startTransmit(*aud);
+            toneGen_ = std::move(gen);
+        }
+        ToneDigitVector v;
+        for (char c : digits) {
+            ToneDigit d; d.digit = c; d.on_msec = 160; d.off_msec = 100; d.volume = 0;
+            v.push_back(d);
+        }
+        toneGen_->playDigits(v);
+    }
 private:
     __unsafe_unretained PJBridge *owner_;
+    std::unique_ptr<ToneGenerator> toneGen_;   // destroyed (unregistered from the bridge) with the call
 };
 
 @implementation PJBridge {
@@ -252,11 +292,44 @@ static NSString *CalledPartyHeader(const std::string &msg) {
     try { _ep->audDevManager().getCaptureDevMedia().adjustTxLevel(_muted ? 0.0f : 1.0f); } catch (...) {}
 }
 
-- (void)sendDTMF:(NSString *)digits callId:(NSInteger)callId {
-    auto it = _calls.find((int)callId); if (it == _calls.end()) return;
+- (BOOL)sendDTMF:(NSString *)digits callId:(NSInteger)callId method:(PJDTMFMethod)method error:(NSError **)error {
+    auto it = _calls.find((int)callId);
+    if (it == _calls.end()) { if (error) *error = PJStatusError(PJ_ENOTFOUND, "Call not found in engine"); return NO; }
     const char *d = digits.UTF8String;
-    if (!d) return;
-    try { it->second->dialDtmf(std::string(d)); } catch (...) {}
+    if (!d || !*d) { if (error) *error = PJStatusError(PJ_EINVAL, "No digits"); return NO; }
+    try {
+        switch (method) {
+            case PJDTMFMethodRFC2833:
+                it->second->dialDtmf(std::string(d));
+                break;
+            case PJDTMFMethodSIPInfo: {
+                CallSendDtmfParam prm;
+                prm.method = PJSUA_DTMF_METHOD_SIP_INFO;
+                prm.digits = std::string(d);
+                it->second->sendDtmf(prm);
+                break;
+            }
+            case PJDTMFMethodInband:
+                it->second->playInband(std::string(d));
+                break;
+            default:
+                if (error) *error = PJStatusError(PJ_EINVAL, "Unknown DTMF method");
+                return NO;
+        }
+        return YES;
+    } catch (Error &e) {
+        if (error) *error = PJStatusError(e.status, e.reason);   // reason is pj_strerror text, not the digits
+        return NO;
+    } catch (...) {
+        if (error) *error = PJStatusError(PJ_EUNKNOWN, "Unexpected exception");
+        return NO;
+    }
+}
+
+- (void)reportMediaOfCall:(int)callId streamInfo:(const StreamInfo &)si {
+    if (_calls.find(callId) == _calls.end()) return;
+    [self.delegate callMediaActive:callId remoteEventPT:si.audTxEventPt localEventPT:si.audRxEventPt
+                             codec:[NSString stringWithUTF8String:si.codecName.c_str()] ?: @""];
 }
 
 /// Hangs up every live call and tells the delegate each one ended, so no call is dropped silently.

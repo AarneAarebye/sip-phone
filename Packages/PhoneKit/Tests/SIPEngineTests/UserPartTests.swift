@@ -1,5 +1,7 @@
 import XCTest
 @testable import SIPEngine
+import PJBridge
+import PhoneCore
 
 final class UserPartTests: XCTestCase {
     func testNamedUri() { XCTAssertEqual(PJSIPEngine.userPart(of: "\"Name\" <sip:0301234@fritz.box>"), "0301234") }
@@ -26,5 +28,17 @@ final class RegistrationMappingTests: XCTestCase {
         XCTAssertEqual(PJSIPEngine.registrationEvent(statusCode: 401, reason: "Unauthorized"),
                        .registration(.failed(code: 401, reason: "Unauthorized")))
         XCTAssertNil(PJSIPEngine.registrationEvent(statusCode: 100, reason: ""))
+    }
+
+    func testMediaInfoMapsNegativePayloadTypeToNil() {
+        let i = PJSIPEngine.mediaInfo(remotePT: -1, localPT: 101, codec: "G722")
+        XCTAssertNil(i.remoteTelephoneEventPT)
+        XCTAssertEqual(i.localTelephoneEventPT, 101)
+        XCTAssertEqual(PJSIPEngine.mediaInfo(remotePT: 0, localPT: -1, codec: "").remoteTelephoneEventPT, 0)
+    }
+    func testBridgeMethodMapping() {
+        XCTAssertEqual(PJSIPEngine.bridgeMethod(.rfc2833), .RFC2833)
+        XCTAssertEqual(PJSIPEngine.bridgeMethod(.sipInfo), .sipInfo)
+        XCTAssertEqual(PJSIPEngine.bridgeMethod(.inband), .inband)
     }
 }
