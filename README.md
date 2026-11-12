@@ -42,7 +42,7 @@ Debug builds use automatic development signing with Xcode-managed profiles and t
 
 ## App icon
 
-The app icon lives in `App/Assets.xcassets/AppIcon.appiconset` (all macOS sizes, 16 to 1024 px) and is drawn by `scripts/make-icon.swift`: a dark rounded square with a green frame, a phone handset and a dot, in the same style as the Dossiary icon. The handset is our own vector drawing (arcs and rounded strokes in CoreGraphics), not an SF Symbol or other third-party artwork. Every size is rendered natively; at 32 px and below the frame stroke is thickened, and at 16 px the dot is left out. To regenerate after changing the script: `swift scripts/make-icon.swift App/Assets.xcassets/AppIcon.appiconset`, then rebuild. The output is deterministic, so unchanged code produces identical PNGs.
+The app icon lives in `App/Assets.xcassets/AppIcon.appiconset` (all macOS sizes, 16 to 1024 px) and is drawn by `scripts/make-icon.swift`: a dark rounded square with a green frame, a phone handset and a dot, in the same style as the Dossiary icon. The handset is our own vector drawing (a symmetric band swept along an arc, with rounded cups, built with CoreGraphics path operations), not an SF Symbol or other third-party artwork. Every size is rendered natively; at 32 px and below the frame stroke and the handset grip are thickened, and at 16 px the dot is left out. To regenerate after changing the script: `swift scripts/make-icon.swift App/Assets.xcassets/AppIcon.appiconset`, then rebuild. The output is deterministic, so unchanged code produces identical PNGs.
 
 ## Releasing
 

@@ -3,15 +3,15 @@
 //
 //   swift scripts/make-icon.swift App/Assets.xcassets/AppIcon.appiconset
 //
-// Deterministic: plain CoreGraphics, sRGB, no fonts and no system glyphs. The handset is our own Bézier
+// Deterministic: plain CoreGraphics, sRGB, no fonts and no system glyphs. The handset is our own vector
 // drawing (SF Symbols must not be used in app icons). Every size is rendered natively at its pixel size;
-// at 32 px and below the frame stroke is thickened, and at 16 px the dot is dropped (it would only be a
-// smudge next to the handset).
+// at 32 px and below the frame stroke and the handset grip are thickened, and at 16 px the dot is dropped
+// (it would only be a smudge next to the handset).
 //
 // Layout on the 1024 canvas (y from the top), same family as the Dossiary icon:
 //   body   rounded square 100…924, radius 185, #1B2426, soft drop shadow below
 //   frame  rounded-square outline, centre line inset 74 (outer edge inset 58), stroke 32, #388B6C
-//   glyph  phone handset, #4FE0A6, slightly up-left of centre
+//   glyph  phone handset, #4FE0A6, 390 px, slightly up-left of centre
 //   dot    filled circle r 36 at (716, 716), #4FE0A6
 
 import AppKit
@@ -31,49 +31,84 @@ let bodyColor = color(0x1B2426)
 let frameColor = color(0x388B6C)
 let glyphColor = color(0x4FE0A6)
 
-/// The handset in 1024-canvas units (y down). A thick arc (the grip) bowing to the lower left, with a
-/// rounded cup at each end that flares towards the inside of the curve: earpiece top-left, mouthpiece
-/// bottom-right. Built from strokes with round caps, so every outer corner is rounded.
-func drawHandset(_ ctx: CGContext) {
-    let center = CGPoint(x: 572, y: 386)   // centre of the grip arc (upper right of the glyph)
-    let radius: CGFloat = 220               // grip centre-line radius
-    let grip: CGFloat = 80                  // grip thickness
-    let spread: CGFloat = 58                // half the arc, degrees either side of the 135° diagonal
-    let cupLength: CGFloat = 80             // how far each cup reaches towards the arc centre
-    let cupWidth: CGFloat = 128             // cup thickness (wider than the grip)
+// MARK: - Handset
+//
+// Built in a local frame: the handset lies along the x axis (earpiece at -x, mouthpiece at +x), its back
+// bulges towards +y and the cups face -y. The outline is a band swept along an arc whose width depends only
+// on |angle|, so the shape is exactly symmetric. A morphological opening rounds the cup corners and a closing
+// (grow by r, shrink by r) rounds every inner joint, so there are no notches or corners. The finished path is scaled to `handsetSize`, rotated 45° (earpiece top-left, mouthpiece bottom
+// right, back towards the bottom left) and centred at `handsetCentre`.
 
-    func point(_ degrees: CGFloat, _ r: CGFloat) -> CGPoint {
-        let a = degrees * .pi / 180
-        return CGPoint(x: center.x + r * cos(a), y: center.y + r * sin(a))
+let handsetSize: CGFloat = 390               // larger side of the rotated bounding box, 1024 units
+let handsetCentre = CGPoint(x: 500, y: 470)  // bounding-box centre: slightly up-left, leaves room for the dot
+
+/// Rounds the concave corners of `path` with radius `r` (dilate, then erode).
+func closing(_ path: CGPath, _ r: CGFloat) -> CGPath {
+    let grown = path.union(path.copy(strokingWithWidth: 2 * r, lineCap: .round, lineJoin: .round, miterLimit: 10))
+    return grown.subtracting(grown.copy(strokingWithWidth: 2 * r, lineCap: .round, lineJoin: .round, miterLimit: 10))
+}
+
+/// Rounds the convex corners of `path` with radius `r` (erode, then dilate). Removes parts thinner than 2r.
+func opening(_ path: CGPath, _ r: CGFloat) -> CGPath {
+    let shrunk = path.subtracting(path.copy(strokingWithWidth: 2 * r, lineCap: .round, lineJoin: .round, miterLimit: 10))
+    return shrunk.union(shrunk.copy(strokingWithWidth: 2 * r, lineCap: .round, lineJoin: .round, miterLimit: 10))
+}
+
+func smoothstep(_ a: CGFloat, _ b: CGFloat, _ x: CGFloat) -> CGFloat {
+    let t = min(max((x - a) / (b - a), 0), 1)
+    return t * t * (3 - 2 * t)
+}
+
+/// A band swept along the arc of radius R (local frame, φ in -φ0…φ0, symmetric because the offset functions
+/// only see |φ|). `back(|φ|)` is the offset towards the back (+radius), `face(|φ|)` towards the face. The ends
+/// are cut along the radius, i.e. square to the arc.
+func sweptBand(radius R: CGFloat, halfAngle phi0: CGFloat, back: (CGFloat) -> CGFloat,
+               face: (CGFloat) -> CGFloat) -> CGPath {
+    let steps = 240
+    let path = CGMutablePath()
+    func pt(_ phi: CGFloat, _ r: CGFloat) -> CGPoint { CGPoint(x: r * sin(phi), y: r * cos(phi)) }
+    for i in 0...steps {
+        let phi = -phi0 + 2 * phi0 * CGFloat(i) / CGFloat(steps)
+        let p = pt(phi, R + back(abs(phi)))
+        if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
     }
-    let start = 135 - spread   // mouthpiece end (bottom right)
-    let end = 135 + spread     // earpiece end (top left)
-
-    ctx.saveGState()
-    ctx.setStrokeColor(glyphColor)
-    ctx.setLineJoin(.round)
-
-    // Grip.
-    ctx.setLineWidth(grip)
-    // Round caps: each cap circle sits inside the cup's own round end (internally tangent), so the joint
-    // between grip and cup has no corner poking out.
-    ctx.setLineCap(.round)
-    ctx.addArc(center: center, radius: radius, startAngle: start * .pi / 180, endAngle: end * .pi / 180,
-               clockwise: false)
-    ctx.strokePath()
-
-    // Cups: short radial strokes with round caps, tilted slightly back along the arc so they read as the
-    // rounded ear/mouth pieces of a classic handset.
-    ctx.setLineWidth(cupWidth)
-    ctx.setLineCap(.round)
-    for (angle, tilt) in [(start, -7.0), (end, 7.0)] as [(CGFloat, CGFloat)] {
-        let outer = point(angle, radius + grip / 2 - cupWidth / 2)
-        let inner = point(angle + tilt, radius - cupLength)
-        ctx.move(to: outer)
-        ctx.addLine(to: inner)
-        ctx.strokePath()
+    for i in stride(from: steps, through: 0, by: -1) {
+        let phi = -phi0 + 2 * phi0 * CGFloat(i) / CGFloat(steps)
+        path.addLine(to: pt(phi, R - face(abs(phi))))
     }
-    ctx.restoreGState()
+    path.closeSubpath()
+    return path
+}
+
+func deg(_ d: CGFloat) -> CGFloat { d * .pi / 180 }
+
+/// Classic handset: wide cups (thickness `cup`, flaring a little more towards their ends) standing out
+/// towards the face, on a slim (~45 %), long, gentle grip; the back is one clean arc. `minWidth` is the
+/// smallest grip width (1024 units) that still renders as a solid line at the pixel size being drawn.
+func handsetLocal(minWidth: CGFloat) -> CGPath {
+    let R: CGFloat = 255, phi0 = deg(47)
+    let cup: CGFloat = 120
+    let grip = max(54, minWidth)
+    let band = sweptBand(radius: R, halfAngle: phi0, back: { _ in grip / 2 },
+                         face: { grip / 2 + (cup - grip) * smoothstep(deg(24), deg(33), $0)
+                             + 12 * smoothstep(deg(33), deg(47), $0) })
+    // Round the cup corners (opening), then put back the slim grip that the opening would thin out.
+    let core = sweptBand(radius: R, halfAngle: deg(36), back: { _ in grip / 2 }, face: { _ in grip / 2 })
+    return closing(opening(band, 32).union(core), 28)
+}
+
+func drawHandset(_ ctx: CGContext, pixels: Int) {
+    let minWidth = pixels <= 32 ? 1.3 * 1024 / CGFloat(pixels) : 0
+    let local = handsetLocal(minWidth: minWidth)
+    var rot = CGAffineTransform(rotationAngle: .pi / 4)
+    let rotated = local.copy(using: &rot)!
+    let box = rotated.boundingBoxOfPath
+    let k = handsetSize / max(box.width, box.height)
+    var place = CGAffineTransform(translationX: handsetCentre.x, y: handsetCentre.y)
+        .scaledBy(x: k, y: k).translatedBy(x: -box.midX, y: -box.midY)
+    ctx.addPath(rotated.copy(using: &place)!)
+    ctx.setFillColor(glyphColor)
+    ctx.fillPath()
 }
 
 func render(pixels: Int) -> CGImage {
@@ -107,7 +142,7 @@ func render(pixels: Int) -> CGImage {
     ctx.setLineWidth(frameStroke)
     ctx.strokePath()
 
-    drawHandset(ctx)
+    drawHandset(ctx, pixels: pixels)
 
     if pixels > 16 {
         ctx.setFillColor(glyphColor)
