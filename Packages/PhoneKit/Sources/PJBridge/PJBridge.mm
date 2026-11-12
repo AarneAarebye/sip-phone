@@ -70,7 +70,7 @@ static NSError *PJError(const std::string &msg) {
         EpConfig cfg;
         cfg.uaConfig.threadCnt = 0;              // we pump events from the main thread
         cfg.uaConfig.mainThreadOnly = true;
-        cfg.uaConfig.userAgent = "FritzPhone";
+        cfg.uaConfig.userAgent = "SipPhone";
         // Level 2 (errors + warnings) and no SIP message dump, so credentials/auth headers are never logged.
         cfg.logConfig.level = 2; cfg.logConfig.consoleLevel = 2;
         cfg.logConfig.msgLogging = 0;

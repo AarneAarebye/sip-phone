@@ -59,7 +59,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
             guard !s.tr064User.isEmpty, let pw = secrets.get(SecretKey.tr064Password) else { return nil }
             return (s.fritzHost, s.tr064User, pw)
         }
-        core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.fritzphone.PacketTunnel"),
+        core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.sipphone.PacketTunnel"),
                        reachability: FritzBoxReachability(host: { store.load().fritzHost }, pinned: { pins.load() }),
                        power: IOKitPowerAssertion(), cache: JSONFileContactCache.standard(), settings: store.load(),
                        sipConfig: {
@@ -111,7 +111,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
             case .register:
                 try SMAppService.mainApp.register()
                 if SMAppService.mainApp.status == .requiresApproval {
-                    message = "Approve Fritz Phone in System Settings > General > Login Items."
+                    message = "Approve SIP Phone in System Settings > General > Login Items."
                 } else if SMAppService.mainApp.status == .notFound {
                     message = "Launch at login failed: the app was not found by the system."
                 }

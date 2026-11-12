@@ -1,8 +1,8 @@
 #!/bin/bash
-# Builds a universal, Developer ID signed, notarized and stapled FritzPhone.dmg under build/release/.
+# Builds a universal, Developer ID signed, notarized and stapled SipPhone.dmg under build/release/.
 # See docs/RELEASE.md for the one-time prerequisites. The script holds no credentials: notarization uses the App Store
 # Connect API key in ~/.config/sipphone-notary/ (override with SIPPHONE_NOTARY_DIR; api-key.env + the .p8 key file),
-# or, as a fallback when that folder has no api-key.env, the notarytool keychain profile "fritzphone-notary".
+# or, as a fallback when that folder has no api-key.env, the notarytool keychain profile "sipphone-notary".
 #
 # Usage: scripts/release.sh [--unsigned] [--skip-notarize] [--help]
 #   --unsigned       Dry run: archive with CODE_SIGNING_ALLOWED=NO, check the app and extension are universal, stop.
@@ -13,12 +13,12 @@
 set -euo pipefail
 
 TEAM_ID="LKF7C4WS72"
-APP_NAME="FritzPhone"
-APP_BUNDLE_ID="com.aarneaarebye.fritzphone"
-EXT_BUNDLE_ID="com.aarneaarebye.fritzphone.PacketTunnel"
-APP_PROFILE="FritzPhone Developer ID"                  # must match project.yml
-EXT_PROFILE="FritzPhone PacketTunnel Developer ID"     # must match project.yml
-NOTARY_PROFILE="fritzphone-notary"                     # fallback only, used when $NOTARY_CONFIG_DIR/api-key.env is absent
+APP_NAME="SipPhone"
+APP_BUNDLE_ID="com.aarneaarebye.sipphone"
+EXT_BUNDLE_ID="com.aarneaarebye.sipphone.PacketTunnel"
+APP_PROFILE="SipPhone Developer ID"                  # must match project.yml
+EXT_PROFILE="SipPhone PacketTunnel Developer ID"     # must match project.yml
+NOTARY_PROFILE="sipphone-notary"                     # fallback only, used when $NOTARY_CONFIG_DIR/api-key.env is absent
 NOTARY_CONFIG_DIR="${SIPPHONE_NOTARY_DIR:-$HOME/.config/sipphone-notary}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -99,7 +99,7 @@ if [ "$UNSIGNED" -eq 0 ]; then
     [ -d "$dir" ] || continue
     for f in "$dir"/*.provisionprofile "$dir"/*.mobileprovision; do
       [ -f "$f" ] || continue
-      plist="$(mktemp -t fritzphone-profile)"; TMP_FILES+=("$plist")
+      plist="$(mktemp -t sipphone-profile)"; TMP_FILES+=("$plist")
       security cms -D -i "$f" > "$plist" 2>/dev/null \
         || die "Could not decode provisioning profile '$f' with 'security cms -D'. Remove or reinstall that file."
       n="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$plist")" || die "Provisioning profile '$f' has no Name key."

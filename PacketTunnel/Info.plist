@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>FritzPhone VPN</string>
+	<string>SIP Phone VPN</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -21,11 +21,11 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSSystemExtensionUsageDescription</key>
-	<string>Connects FritzPhone to your FRITZ!Box over WireGuard when you are away from home.</string>
+	<string>Connects SIP Phone to your FRITZ!Box over WireGuard when you are away from home.</string>
 	<key>NetworkExtension</key>
 	<dict>
 		<key>NEMachServiceName</key>
-		<string>$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone.PacketTunnel</string>
+		<string>$(TeamIdentifierPrefix)com.aarneaarebye.sipphone.PacketTunnel</string>
 		<key>NEProviderClasses</key>
 		<dict>
 			<key>com.apple.networkextension.packet-tunnel</key>

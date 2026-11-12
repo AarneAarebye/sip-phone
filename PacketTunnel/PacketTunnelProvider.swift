@@ -4,7 +4,7 @@ import VPN
 import WireGuardKit
 
 final class PacketTunnelProvider: NEPacketTunnelProvider {
-    private static let log = Logger(subsystem: "com.aarneaarebye.fritzphone.PacketTunnel", category: "tunnel")
+    private static let log = Logger(subsystem: "com.aarneaarebye.sipphone.PacketTunnel", category: "tunnel")
 
     // WireGuardKit's log lines carry endpoints/DNS/network state, never keys or the config text.
     private lazy var adapter = WireGuardAdapter(with: self) { level, message in
@@ -12,10 +12,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        // The config only arrives in the start options from FritzPhone (see TunnelConfigHandoff).
+        // The config only arrives in the start options from SIP Phone (see TunnelConfigHandoff).
         guard let text = TunnelConfigHandoff.config(fromStartOptions: options) else {
-            Self.log.error("Start without configuration (not started by FritzPhone)")
-            return completionHandler(Self.error("Start the VPN from FritzPhone"))
+            Self.log.error("Start without configuration (not started by SIP Phone)")
+            return completionHandler(Self.error("Start the VPN from SIP Phone"))
         }
         let config: TunnelConfiguration
         do { config = try TunnelConfiguration(fromWgQuickConfig: text, called: "FRITZ!Box") }
@@ -44,6 +44,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     private static func error(_ message: String) -> NSError {
-        NSError(domain: "com.aarneaarebye.fritzphone.PacketTunnel", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        NSError(domain: "com.aarneaarebye.sipphone.PacketTunnel", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 }

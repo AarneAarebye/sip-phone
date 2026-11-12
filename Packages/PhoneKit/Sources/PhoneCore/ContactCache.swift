@@ -9,7 +9,7 @@ public struct JSONFileContactCache: ContactCache {
     private let url: URL
     public init(url: URL) { self.url = url }
     public static func standard() -> JSONFileContactCache {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("FritzPhone")
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("SipPhone")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return JSONFileContactCache(url: dir.appendingPathComponent("contacts.json"))
     }

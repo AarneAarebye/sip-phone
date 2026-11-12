@@ -1,4 +1,4 @@
-name: FritzPhone
+name: SipPhone
 options:
   bundleIdPrefix: com.aarneaarebye
   deploymentTarget: { macOS: "14.0" }
@@ -17,20 +17,20 @@ packages:
   # Vendored copy of wireguard-apple's WireGuardKit (upstream manifest no longer resolves; see its Package.swift).
   WireGuardKit: { path: Packages/WireGuardKit }
 targets:
-  FritzPhone:
+  SipPhone:
     type: application
     platform: macOS
     sources: [App]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.fritzphone
+        PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.sipphone
       configs:
         # Developer ID distribution (scripts/release.sh, docs/RELEASE.md). Debug keeps automatic development signing.
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
           OTHER_CODE_SIGN_FLAGS: "--timestamp"
-          PROVISIONING_PROFILE_SPECIFIER: "FritzPhone Developer ID"
+          PROVISIONING_PROFILE_SPECIFIER: "SipPhone Developer ID"
     dependencies:
       - package: PhoneKit
         product: PhoneCore
@@ -46,10 +46,11 @@ targets:
     info:
       path: App/Info.plist
       properties:
+        CFBundleDisplayName: "SIP Phone"
         LSUIElement: true
         NSMicrophoneUsageDescription: "Needed to make phone calls."
     entitlements:
-      path: App/FritzPhone.entitlements
+      path: App/SipPhone.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
@@ -57,7 +58,7 @@ targets:
         com.apple.security.device.audio-input: true
         com.apple.developer.system-extension.install: true
         com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
-        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone"]
+        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.sipphone"]
 
   PacketTunnel:
     type: system-extension
@@ -65,8 +66,8 @@ targets:
     sources: [PacketTunnel]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.fritzphone.PacketTunnel
-        PRODUCT_NAME: com.aarneaarebye.fritzphone.PacketTunnel   # sysext bundle name must be <bundle id>.systemextension
+        PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.sipphone.PacketTunnel
+        PRODUCT_NAME: com.aarneaarebye.sipphone.PacketTunnel   # sysext bundle name must be <bundle id>.systemextension
         PRODUCT_MODULE_NAME: PacketTunnel
         SKIP_INSTALL: YES
       configs:
@@ -75,7 +76,7 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
           OTHER_CODE_SIGN_FLAGS: "--timestamp"
-          PROVISIONING_PROFILE_SPECIFIER: "FritzPhone PacketTunnel Developer ID"
+          PROVISIONING_PROFILE_SPECIFIER: "SipPhone PacketTunnel Developer ID"
     dependencies:
       - target: WireGuardGoBridgemacOS   # builds libwg-go.a (Go) before WireGuardKit links
       - package: WireGuardKit
@@ -85,11 +86,11 @@ targets:
     info:
       path: PacketTunnel/Info.plist
       properties:
-        CFBundleDisplayName: FritzPhone VPN
+        CFBundleDisplayName: SIP Phone VPN
         CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
-        NSSystemExtensionUsageDescription: "Connects FritzPhone to your FRITZ!Box over WireGuard when you are away from home."
+        NSSystemExtensionUsageDescription: "Connects SIP Phone to your FRITZ!Box over WireGuard when you are away from home."
         NetworkExtension:
-          NEMachServiceName: "$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone.PacketTunnel"
+          NEMachServiceName: "$(TeamIdentifierPrefix)com.aarneaarebye.sipphone.PacketTunnel"
           NEProviderClasses:
             com.apple.networkextension.packet-tunnel: "$(PRODUCT_MODULE_NAME).PacketTunnelProvider"
     entitlements:
@@ -99,7 +100,7 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.network.server: true
-        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone"]
+        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.sipphone"]
 
   # External build target as in the WireGuardKit README: runs WireGuardKitGo's Makefile, which builds
   # wireguard-go with the local Go toolchain for every arch in $(ARCHS) and lipo's libwg-go.a into

@@ -13,7 +13,7 @@ public enum SecretKey {
 
 public struct KeychainSecretStore: SecretStore {
     private let service: String
-    public init(service: String = "FritzPhone") { self.service = service }
+    public init(service: String = "SipPhone") { self.service = service }
     private func query(_ key: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: key]
     }

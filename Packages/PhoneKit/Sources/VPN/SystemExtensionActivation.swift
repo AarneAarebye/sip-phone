@@ -85,7 +85,7 @@ final class SystemExtensionActivation: NSObject, OSSystemExtensionRequestDelegat
             return error.localizedDescription
         }
         switch code {
-        case .unsupportedParentBundleLocation: return "move FritzPhone to the Applications folder and relaunch it"
+        case .unsupportedParentBundleLocation: return "move SIP Phone to the Applications folder and relaunch it"
         case .missingEntitlement: return "the app is not signed with the System Extension entitlement"
         case .extensionNotFound: return "network extension missing from the app bundle"
         case .codeSignatureInvalid: return "network extension signature is invalid"

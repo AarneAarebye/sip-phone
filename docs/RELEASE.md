@@ -1,6 +1,6 @@
-# Releasing FritzPhone
+# Releasing SIP Phone
 
-`scripts/release.sh` produces a universal (arm64 + x86_64), Developer ID signed, notarized and stapled `build/release/FritzPhone.dmg` (the app inside and the DMG itself are both signed, notarized and stapled). The app is distributed outside the Mac App Store; the embedded WireGuard packet tunnel is a system extension, which requires Developer ID provisioning profiles.
+`scripts/release.sh` produces a universal (arm64 + x86_64), Developer ID signed, notarized and stapled `build/release/SipPhone.dmg` (the app inside and the DMG itself are both signed, notarized and stapled). The app is distributed outside the Mac App Store; the embedded WireGuard packet tunnel is a system extension, which requires Developer ID provisioning profiles.
 
 ## One-time prerequisites
 
@@ -18,10 +18,10 @@ At developer.apple.com > Identifiers, two explicit App IDs:
 
 | Bundle id | Capabilities |
 |---|---|
-| `com.aarneaarebye.fritzphone` | Network Extensions, System Extension, App Groups |
-| `com.aarneaarebye.fritzphone.PacketTunnel` | Network Extensions, App Groups |
+| `com.aarneaarebye.sipphone` | Network Extensions, System Extension, App Groups |
+| `com.aarneaarebye.sipphone.PacketTunnel` | Network Extensions, App Groups |
 
-Both entitlement files use the app group `LKF7C4WS72.com.aarneaarebye.fritzphone` (team-prefixed macOS form, resolved from `$(TeamIdentifierPrefix)`). If the portal or the profile requires an explicit group, register that id and assign it to both App IDs.
+Both entitlement files use the app group `LKF7C4WS72.com.aarneaarebye.sipphone` (team-prefixed macOS form, resolved from `$(TeamIdentifierPrefix)`). If the portal or the profile requires an explicit group, register that id and assign it to both App IDs.
 
 ### Provisioning profiles
 
@@ -29,8 +29,8 @@ At developer.apple.com > Profiles, create two profiles of type "Developer ID" (d
 
 | App ID | Profile name |
 |---|---|
-| `com.aarneaarebye.fritzphone` | `FritzPhone Developer ID` |
-| `com.aarneaarebye.fritzphone.PacketTunnel` | `FritzPhone PacketTunnel Developer ID` |
+| `com.aarneaarebye.sipphone` | `SipPhone Developer ID` |
+| `com.aarneaarebye.sipphone.PacketTunnel` | `SipPhone PacketTunnel Developer ID` |
 
 Download both `.provisionprofile` files and double-click each to install them (Xcode copies them to `~/Library/Developer/Xcode/UserData/Provisioning Profiles`). If you pick different names, change `PROVISIONING_PROFILE_SPECIFIER` in the Release configs of both targets in `project.yml` and `APP_PROFILE` / `EXT_PROFILE` in `scripts/release.sh`.
 
@@ -63,10 +63,10 @@ The API key needs the Developer role or higher (App Store Connect > Users and Ac
 
 Tests for the parser and permission checks use synthetic files in a temp directory: `scripts/tests/test-notary-config.sh`.
 
-Fallback: if `api-key.env` does not exist in that folder, the script uses the notarytool keychain profile `fritzphone-notary` instead. Create it once with an app-specific password from account.apple.com (the command prompts for it; nothing is written to the repository):
+Fallback: if `api-key.env` does not exist in that folder, the script uses the notarytool keychain profile `sipphone-notary` instead. Create it once with an app-specific password from account.apple.com (the command prompts for it; nothing is written to the repository):
 
 ```
-xcrun notarytool store-credentials "fritzphone-notary" --apple-id <apple id> --team-id LKF7C4WS72
+xcrun notarytool store-credentials "sipphone-notary" --apple-id <apple id> --team-id LKF7C4WS72
 ```
 
 `--unsigned` and `--skip-notarize` need neither.
@@ -83,7 +83,7 @@ scripts/release.sh --skip-notarize    # signed and verified, builds a signed DMG
 scripts/release.sh --unsigned         # dry run, see below
 ```
 
-Output is under `build/release/` (git-ignored): `FritzPhone.xcarchive`, `ExportOptions.plist` (generated), `export/FritzPhone.app`, `FritzPhone.dmg`.
+Output is under `build/release/` (git-ignored): `SipPhone.xcarchive`, `ExportOptions.plist` (generated), `export/SipPhone.app`, `SipPhone.dmg`.
 
 The script stops with a message if the certificate, either profile, the notary credentials, `xcodegen` or `go` is missing. Steps of a full run:
 
@@ -104,12 +104,12 @@ Signature verification also requires a secure timestamp (`Timestamp=` in `codesi
 
 ## First run on a target Mac
 
-1. Copy `FritzPhone.dmg` to the Mac, open it and drag FritzPhone to Applications. Run it from `/Applications`: system extensions can only be activated from there.
-2. When the VPN is first needed (or on start), macOS shows "System Extension Blocked". Open System Settings > General > Login Items & Extensions > Network Extensions (on some versions Privacy & Security) and enable the FritzPhone VPN extension; authenticate when asked.
+1. Copy `SipPhone.dmg` to the Mac, open it and drag SIP Phone to Applications. Run it from `/Applications`: system extensions can only be activated from there.
+2. When the VPN is first needed (or on start), macOS shows "System Extension Blocked". Open System Settings > General > Login Items & Extensions > Network Extensions (on some versions Privacy & Security) and enable the SIP Phone VPN extension; authenticate when asked.
 3. macOS then asks to allow a VPN configuration; allow it.
 4. Allow microphone access on the first call.
 
-Check state: `systemextensionsctl list` should show `com.aarneaarebye.fritzphone.PacketTunnel` as `[activated enabled]`.
+Check state: `systemextensionsctl list` should show `com.aarneaarebye.sipphone.PacketTunnel` as `[activated enabled]`.
 
 ## Testing on the Intel iMac (macOS Tahoe 26)
 
@@ -117,14 +117,14 @@ macOS 26 Tahoe is the last macOS release that supports Intel Macs. The app deplo
 
 1. Copy the DMG over (AirDrop or a USB stick). Gatekeeper checks the notarization ticket, which is stapled, so it works offline.
 2. Install, approve the extension as above, then follow `docs/MANUAL_TEST.md`.
-3. Confirm the slice in use: `lipo -archs /Applications/FritzPhone.app/Contents/MacOS/FritzPhone` lists `x86_64 arm64`; `file` on the extension executable shows both architectures too.
+3. Confirm the slice in use: `lipo -archs /Applications/SipPhone.app/Contents/MacOS/SipPhone` lists `x86_64 arm64`; `file` on the extension executable shows both architectures too.
 
 ## Troubleshooting
 
 - "Provisioning profile ... doesn't include the ... entitlement" or "profile doesn't match bundle identifier": the profile was created for the wrong App ID, or the App ID lacks Network Extensions / System Extension. Fix the App ID, regenerate and reinstall the profile, and keep its name. Inspect an installed profile: `security cms -D -i <file>.provisionprofile`.
-- "No profile matching 'FritzPhone Developer ID' found": the name differs from the one in `project.yml`, or the profile is of a different type (it must be Developer ID, not Development).
-- "System extension not found inside the app": the extension must be at `Contents/Library/SystemExtensions/com.aarneaarebye.fritzphone.PacketTunnel.systemextension`. It comes from the `PacketTunnel` dependency of the app target in `project.yml`; `PRODUCT_NAME` of the extension must be its bundle id.
-- Notarization rejected: the script prints the log. Common causes are a missing hardened runtime, a missing secure timestamp, or an unsigned nested binary. Fetch it again with `xcrun notarytool log <submission id>` with the same credential flags as the script (`--key <path to the .p8> --key-id <id> --issuer <issuer>`, or `--keychain-profile fritzphone-notary` for the fallback); the ids are listed by `xcrun notarytool history` with the same flags.
+- "No profile matching 'SipPhone Developer ID' found": the name differs from the one in `project.yml`, or the profile is of a different type (it must be Developer ID, not Development).
+- "System extension not found inside the app": the extension must be at `Contents/Library/SystemExtensions/com.aarneaarebye.sipphone.PacketTunnel.systemextension`. It comes from the `PacketTunnel` dependency of the app target in `project.yml`; `PRODUCT_NAME` of the extension must be its bundle id.
+- Notarization rejected: the script prints the log. Common causes are a missing hardened runtime, a missing secure timestamp, or an unsigned nested binary. Fetch it again with `xcrun notarytool log <submission id>` with the same credential flags as the script (`--key <path to the .p8> --key-id <id> --issuer <issuer>`, or `--keychain-profile sipphone-notary` for the fallback); the ids are listed by `xcrun notarytool history` with the same flags.
 - `notarytool history` fails in the prerequisite check: the API key may be revoked, have too low a role, or `KEY_ID` / `ISSUER` may be wrong; for the keychain fallback re-run `store-credentials` (the app-specific password may have been revoked).
 - "api-key.env ... group/other must have no access": `chmod 600` the file named in the message (and the `.p8`); `chmod 700 ~/.config/sipphone-notary`.
 - Extension stays "waiting for user approval" or never appears: it is only activated for an app in `/Applications`; check `systemextensionsctl list` and the approval in System Settings.

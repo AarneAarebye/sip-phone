@@ -1,8 +1,8 @@
-# FritzPhone
+# SIP Phone
 
 A macOS menu bar SIP phone for a FRITZ!Box. It registers as an IP telephone on the FRITZ!Box, shows incoming calls as notifications with the name from the FRITZ!Box phone books, lets you place calls, and shows the call history. When you are away from home it can reach the FRITZ!Box through a full-tunnel WireGuard VPN.
 
-Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon and Intel Macs). Bundle ids: `com.aarneaarebye.fritzphone` (app) and `com.aarneaarebye.fritzphone.PacketTunnel` (VPN system extension). Team ID: `LKF7C4WS72`.
+Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon and Intel Macs). Bundle ids: `com.aarneaarebye.sipphone` (app) and `com.aarneaarebye.sipphone.PacketTunnel` (VPN system extension). Team ID: `LKF7C4WS72`.
 
 ## Features (v1)
 
@@ -29,19 +29,19 @@ Prerequisites: Xcode (developed with Xcode 27), Homebrew.
 ```
 brew install xcodegen go
 scripts/build-pjsip.sh      # universal PJSIP xcframework, git-ignored, takes about 2 minutes
-xcodegen                    # generates FritzPhone.xcodeproj from project.yml
-open FritzPhone.xcodeproj   # build and run the FritzPhone scheme
+xcodegen                    # generates SipPhone.xcodeproj from project.yml
+open SipPhone.xcodeproj   # build and run the SipPhone scheme
 ```
 
 To build under a different team or prefix, change `DEVELOPMENT_TEAM`, `bundleIdPrefix` and the bundle ids (also the extension id in `App/AppEnvironment.swift`) in `project.yml` and the sources.
 
 Unit tests: `cd Packages/PhoneKit && swift test`.
 
-A signed build requires Apple provisioning profiles with the Network Extension and System Extension capabilities for both bundle ids. Without them the signed build fails; `xcodebuild -scheme FritzPhone -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build` still compiles everything.
+A signed build requires Apple provisioning profiles with the Network Extension and System Extension capabilities for both bundle ids. Without them the signed build fails; `xcodebuild -scheme SipPhone -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build` still compiles everything.
 
 ## Releasing
 
-`scripts/release.sh` builds a universal, Developer ID signed, notarized and stapled `build/release/FritzPhone.dmg`. `scripts/release.sh --unsigned` is a dry run (archive plus universal check, no signing). Notarization uses an App Store Connect API key in `~/.config/sipphone-notary/` (`api-key.env` with `KEY_FILE`, `KEY_ID`, `ISSUER`, plus the `.p8` key file; modes 600, folder 700; override the folder with `SIPPHONE_NOTARY_DIR`; the `fritzphone-notary` Keychain profile remains a fallback). That folder lives outside the repository and must never be committed. Prerequisites (certificate, two provisioning profiles, notary credentials) and troubleshooting are in [docs/RELEASE.md](docs/RELEASE.md).
+`scripts/release.sh` builds a universal, Developer ID signed, notarized and stapled `build/release/SipPhone.dmg`. `scripts/release.sh --unsigned` is a dry run (archive plus universal check, no signing). Notarization uses an App Store Connect API key in `~/.config/sipphone-notary/` (`api-key.env` with `KEY_FILE`, `KEY_ID`, `ISSUER`, plus the `.p8` key file; modes 600, folder 700; override the folder with `SIPPHONE_NOTARY_DIR`; the `sipphone-notary` Keychain profile remains a fallback). That folder lives outside the repository and must never be committed. Prerequisites (certificate, two provisioning profiles, notary credentials) and troubleshooting are in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## VPN (system extension)
 
@@ -60,7 +60,7 @@ The FRITZ!Box typically has several phone numbers, including a fax number. Outgo
 ## Behaviour notes
 
 - The Mac only rings while it is awake. While on AC power the app holds a no-idle-sleep assertion (can be switched off in Settings). Calls missed during sleep appear in History after wake.
-- The FRITZ!Box TLS certificate is pinned on first use. The pin is also how the app recognises your own FRITZ!Box at home: another FRITZ!Box (for example on a visited network) counts as "not at home" and the VPN is started. After replacing or resetting your FRITZ!Box, click "Forget pinned certificate" in Settings; until then the app reports "The FRITZ!Box certificate changed…" or keeps starting the VPN at home. The app is sandboxed, so a plain `defaults delete com.aarneaarebye.fritzphone …` does not reach its preferences; from Terminal, quit the app and run `defaults delete ~/Library/Containers/com.aarneaarebye.fritzphone/Data/Library/Preferences/com.aarneaarebye.fritzphone tr064CertFingerprint`.
+- The FRITZ!Box TLS certificate is pinned on first use. The pin is also how the app recognises your own FRITZ!Box at home: another FRITZ!Box (for example on a visited network) counts as "not at home" and the VPN is started. After replacing or resetting your FRITZ!Box, click "Forget pinned certificate" in Settings; until then the app reports "The FRITZ!Box certificate changed…" or keeps starting the VPN at home. The app is sandboxed, so a plain `defaults delete com.aarneaarebye.sipphone …` does not reach its preferences; from Terminal, quit the app and run `defaults delete ~/Library/Containers/com.aarneaarebye.sipphone/Data/Library/Preferences/com.aarneaarebye.sipphone tr064CertFingerprint`.
 - Microphone access is required for calls.
 
 ## Dev tools

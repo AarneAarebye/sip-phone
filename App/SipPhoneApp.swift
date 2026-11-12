@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct FritzPhoneApp: App {
+struct SipPhoneApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {

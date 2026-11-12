@@ -10,8 +10,8 @@ public enum VPNError: Error, Equatable, LocalizedError {
         case .notConfigured: "No WireGuard configuration in Settings"
         case .invalidConfig(let why): "Invalid WireGuard configuration: \(why)"
         case .needsApproval:
-            "Allow the FritzPhone network extension in System Settings > General > Login Items & Extensions > Network Extensions"
-        case .rebootRequired: "Restart the Mac to finish installing the FritzPhone network extension"
+            "Allow the SIP Phone network extension in System Settings > General > Login Items & Extensions > Network Extensions"
+        case .rebootRequired: "Restart the Mac to finish installing the SIP Phone network extension"
         case .activationFailed(let why): "Network extension could not be installed: \(why)"
         case .timeout: "VPN did not connect in time"
         case .stopped(let why): why.map { "VPN stopped: \($0)" } ?? "VPN stopped unexpectedly"

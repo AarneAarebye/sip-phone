@@ -11,7 +11,7 @@ import AppKit
         activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
                                                          reason: "SIP registration and incoming calls")
         notifications.setUp()
-        FritzPhone.observe { [self] in   // module-qualified: NSObject.observe(_:) would shadow the global
+        SipPhone.observe { [self] in   // module-qualified: NSObject.observe(_:) would shadow the global
             _ = env.core.activeCall          // establishes the observation (any change of the call re-runs this)
             callWindow.update(); notifications.update()
         }
