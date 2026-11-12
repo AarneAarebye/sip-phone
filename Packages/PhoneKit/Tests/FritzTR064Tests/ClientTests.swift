@@ -53,10 +53,33 @@ final class ClientTests: XCTestCase {
         let client = FritzTR064Client(host: "fritz.box", transport: transport)
         let contacts = try await client.loadContacts()
         XCTAssertEqual(contacts.count, 4)
+        XCTAssertEqual(contacts.map(\.phoneBook), ["Telefonbuch (0)", "Telefonbuch (0)", "Telefonbuch (1)", "Telefonbuch (1)"])
         XCTAssertEqual(contacts.map(\.id), ["0-11", "0-12", "1-11", "1-12"])
         XCTAssertEqual(transport.requests.first?.value(forHTTPHeaderField: "SOAPAction"),
                        "\"urn:dslforum-org:service:X_AVM-DE_OnTel:1#GetPhonebookList\"")
         XCTAssertEqual(transport.requests.first?.url?.absoluteString, "https://fritz.box:49443/upnp/control/x_contact")
+    }
+
+    func testLoadContactsPhoneBookNames() async throws {
+        func book(_ attr: String) -> Data {
+            Data("<phonebooks><phonebook \(attr)><contact><person><realName>X</realName></person><uniqueid>7</uniqueid></contact></phonebook></phonebooks>".utf8)
+        }
+        let books: [String: Data] = ["0": book(#"name="Telefonbuch""#), "1": book(#"name="Familie""#),
+                                     "2": book(#"name="Telefonbuch""#), "3": book(#"owner="3""#)]
+        let transport = FakeTransport { req in
+            let action = req.value(forHTTPHeaderField: "SOAPAction") ?? ""
+            let body = req.httpBody.map { String(decoding: $0, as: UTF8.self) } ?? ""
+            if action.hasSuffix("#GetPhonebookList\"") { return soapReply("GetPhonebookList", ["NewPhonebookList": "0,1,2,3"]) }
+            if action.hasSuffix("#GetPhonebook\"") {
+                let id = ["0", "1", "2", "3"].first { body.contains(">\($0)<") }!
+                return soapReply("GetPhonebook", ["NewPhonebookURL": "https://fritz.box:49443/pb\(id).xml"])
+            }
+            let path = req.url?.lastPathComponent ?? ""
+            return books[String(path.dropFirst(2).prefix(1))]!
+        }
+        let contacts = try await FritzTR064Client(host: "fritz.box", transport: transport).loadContacts()
+        XCTAssertEqual(contacts.map(\.phoneBook), ["Telefonbuch (0)", "Familie", "Telefonbuch (2)", "Phone book 3"])
+        XCTAssertEqual(contacts.map(\.id), ["0-7", "1-7", "2-7", "3-7"])
     }
 
     func testLoadCallListAppendsMax() async throws {

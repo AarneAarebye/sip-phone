@@ -18,6 +18,17 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(contacts[1].numbers.first?.number, "+49 89 998877")
     }
 
+    func testPhoneBookNameAttribute() throws {
+        XCTAssertEqual(try PhoneBookParser.parse(try fixture("phonebook")).map(\.phoneBook), ["Telefonbuch", "Telefonbuch"])
+        func parse(_ attr: String) throws -> String? {
+            let xml = "<phonebooks><phonebook \(attr)><contact><person><realName>A</realName></person><uniqueid>1</uniqueid></contact></phonebook></phonebooks>"
+            return try PhoneBookParser.parse(Data(xml.utf8)).first?.phoneBook
+        }
+        XCTAssertEqual(try parse(#"name="  Familie  ""#), "Familie")
+        XCTAssertNil(try parse(#"name="   ""#))
+        XCTAssertNil(try parse(#"owner="0""#))
+    }
+
     func testCallList() throws {
         let tz = TimeZone(identifier: "Europe/Berlin")!
         let calls = try CallListParser.parse(try fixture("calllist"), timeZone: tz)

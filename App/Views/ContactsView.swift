@@ -6,9 +6,7 @@ struct ContactsView: View {
     @State private var query = ""
 
     private var filtered: [Contact] {
-        query.isEmpty ? core.contacts : core.contacts.filter {
-            $0.name.localizedCaseInsensitiveContains(query) || $0.numbers.contains { $0.number.contains(query) }
-        }
+        query.isEmpty ? core.contacts : core.contacts.filter { ContactFilter.matches($0, query) }
     }
     var body: some View {
         VStack {
@@ -17,6 +15,9 @@ struct ContactsView: View {
             List(filtered) { c in
                 VStack(alignment: .leading) {
                     Text(c.name.isEmpty ? (c.numbers.first?.number ?? "—") : c.name).font(.headline)
+                    if let book = c.phoneBook {
+                        Label(book, systemImage: "book").font(.caption2).foregroundStyle(.secondary)
+                    }
                     ForEach(c.numbers, id: \.number) { n in
                         Button { Microphone.dial(n.number, core: core) } label: {
                             Label("\(n.type) \(n.number)", systemImage: "phone").font(.caption)

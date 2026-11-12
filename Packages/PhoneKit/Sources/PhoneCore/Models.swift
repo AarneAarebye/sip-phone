@@ -10,7 +10,20 @@ public struct Contact: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let name: String
     public let numbers: [PhoneNumber]
-    public init(id: String, name: String, numbers: [PhoneNumber]) { self.id = id; self.name = name; self.numbers = numbers }
+    /// Display name of the FRITZ!Box phone book this contact comes from (nil in caches written before this existed).
+    public let phoneBook: String?
+    public init(id: String, name: String, numbers: [PhoneNumber], phoneBook: String? = nil) {
+        self.id = id; self.name = name; self.numbers = numbers; self.phoneBook = phoneBook
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, numbers, phoneBook }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        numbers = try c.decode([PhoneNumber].self, forKey: .numbers)
+        phoneBook = try c.decodeIfPresent(String.self, forKey: .phoneBook)
+    }
 }
 
 public enum CallRecordType: Equatable, Sendable { case incoming, missed, outgoing, rejected }

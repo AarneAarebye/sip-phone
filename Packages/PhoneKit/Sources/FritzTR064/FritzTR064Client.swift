@@ -42,12 +42,19 @@ public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
 
     public func loadContacts() async throws -> [Contact] {
         let list = try await call("GetPhonebookList")["NewPhonebookList"] ?? "0"
-        var all: [Contact] = []
-        for id in list.split(separator: ",").map(String.init) {
+        var books: [(id: String, name: String, contacts: [Contact])] = []
+        for id in list.split(separator: ",").map({ String($0).trimmingCharacters(in: .whitespaces) }) where !id.isEmpty {
             let reply = try await call("GetPhonebook", [("NewPhonebookID", id)])
             guard let s = reply["NewPhonebookURL"], let url = Self.rebase(s, onto: base) else { throw FritzError.missingField("NewPhonebookURL") }
             let contacts = try PhoneBookParser.parse(try await transport.send(URLRequest(url: url)))
-            all += contacts.map { Contact(id: "\(id)-\($0.id)", name: $0.name, numbers: $0.numbers) }
+            books.append((id, contacts.lazy.compactMap(\.phoneBook).first ?? "Phone book \(id)", contacts))
+        }
+        // Books sharing a name get their id appended, e.g. "Telefonbuch (1)", so they stay distinguishable.
+        let counts = Dictionary(books.map { ($0.name, 1) }, uniquingKeysWith: +)
+        var all: [Contact] = []
+        for book in books {
+            let display = counts[book.name, default: 0] > 1 ? "\(book.name) (\(book.id))" : book.name
+            all += book.contacts.map { Contact(id: "\(book.id)-\($0.id)", name: $0.name, numbers: $0.numbers, phoneBook: display) }
         }
         return all
     }

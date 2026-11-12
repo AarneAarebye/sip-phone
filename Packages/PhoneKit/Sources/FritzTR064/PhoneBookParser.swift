@@ -39,10 +39,15 @@ public enum PhoneBookParser {
         private var name = "", uid = "", numberType = ""
         private var numbers: [PhoneNumber] = []
         private var inContact = false
+        private var bookName: String?
 
         func parser(_ parser: XMLParser, didStartElement el: String, namespaceURI: String?,
                     qualifiedName: String?, attributes: [String: String] = [:]) {
             text = ""
+            if el == "phonebook" {
+                let n = (attributes["name"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                bookName = n.isEmpty ? nil : n
+            }
             if el == "contact" { inContact = true; name = ""; uid = ""; numbers = [] }
             if el == "number" { numberType = attributes["type"] ?? "" }
         }
@@ -55,7 +60,7 @@ public enum PhoneBookParser {
             case "number": if !t.isEmpty { numbers.append(PhoneNumber(number: t, type: numberType)) }
             case "contact":
                 inContact = false
-                contacts.append(Contact(id: uid.isEmpty ? String(contacts.count) : uid, name: name, numbers: numbers))
+                contacts.append(Contact(id: uid.isEmpty ? String(contacts.count) : uid, name: name, numbers: numbers, phoneBook: bookName))
             default: break
             }
         }
