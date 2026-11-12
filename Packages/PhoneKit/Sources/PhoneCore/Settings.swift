@@ -21,6 +21,24 @@ public enum DTMFMethod: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Which address the SDP of a call advertises for the audio (RTP). Diagnostic switch for calls over the VPN.
+public enum MediaAddressMode: String, Codable, CaseIterable, Sendable {
+    /// PJSIP's own choice (the address of the interface with the default route). Today's behaviour.
+    case automatic
+    /// SDP uses the address the FRITZ!Box saw in the REGISTER (Via received=); with the tunnel up, the tunnel IP.
+    case natRewrite
+    /// The audio socket is bound to the tunnel interface's IPv4 when the VPN is up (else automatic).
+    case tunnelInterface
+
+    public var label: String {
+        switch self {
+        case .automatic: return "Automatic (current)"
+        case .natRewrite: return "Use the address learned from the FRITZ!Box (NAT rewrite)"
+        case .tunnelInterface: return "Bind media to the tunnel interface when the VPN is up"
+        }
+    }
+}
+
 public struct AppSettings: Codable, Equatable, Sendable {
     public var fritzHost = "fritz.box"
     public var sipUser = ""
@@ -36,11 +54,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var splitTunnel = true
     /// Home network as a CIDR (e.g. 192.168.65.0/24); empty = derived from the WireGuard Address (its /24).
     public var homeNetworkCIDR = ""
+    /// Media (RTP) address advertised in calls; applies from the next (re)registration.
+    public var mediaAddressMode: MediaAddressMode = .automatic
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case disabledPhoneBooks, fritzHost, sipUser, tr064User, countryCode, areaCode, keepAwakeOnPower, launchAtLogin, dtmfMethod
-        case splitTunnel, homeNetworkCIDR
+        case splitTunnel, homeNetworkCIDR, mediaAddressMode
     }
 
     /// Tolerant: a missing (older stored settings) or unknown value (including the removed "both") keeps the default for that field only.
@@ -61,6 +81,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         disabledPhoneBooks = value(.disabledPhoneBooks, d.disabledPhoneBooks)
         splitTunnel = value(.splitTunnel, d.splitTunnel)
         homeNetworkCIDR = value(.homeNetworkCIDR, d.homeNetworkCIDR)
+        mediaAddressMode = value(.mediaAddressMode, d.mediaAddressMode)
     }
 }
 
