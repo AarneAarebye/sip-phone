@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var sipPassword = ""
     @State private var wireguard = ""
     @State private var saveError: String?
+    @State private var loginItemMessage: String?
 
     var body: some View {
         Form {
@@ -30,17 +31,22 @@ struct SettingsView: View {
                 Toggle("Keep Mac awake while on power", isOn: $s.keepAwakeOnPower)
                 Toggle("Launch at login", isOn: $s.launchAtLogin)
             }
+            if let loginItemMessage { Text(loginItemMessage).font(.caption).foregroundStyle(.red) }
             if let saveError { Text(saveError).font(.caption).foregroundStyle(.red) }
             Button("Save") {
                 Task {
-                    saveError = await env.applySettings(s, tr064Password: tr064Password, sipPassword: sipPassword,
-                                                        wireguardConfig: wireguard)
+                    let r = await env.applySettings(s, tr064Password: tr064Password, sipPassword: sipPassword,
+                                                    wireguardConfig: wireguard)
+                    saveError = r.saveError; loginItemMessage = r.loginItemMessage
                     if saveError == nil { tr064Password = ""; sipPassword = ""; wireguard = "" }
                 }
             }
         }
         .formStyle(.grouped).frame(width: 440).padding()
-        .onAppear { s = env.settingsStore.load() }
+        .onAppear {
+            s = env.settingsStore.load()
+            s.launchAtLogin = LaunchAtLogin.isOn(AppEnvironment.loginItemStatus())
+        }
         .background(SettingsWindowActivator())
     }
 }

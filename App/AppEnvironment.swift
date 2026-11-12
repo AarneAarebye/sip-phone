@@ -65,9 +65,20 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                        })
     }
 
-    /// Returns an error message if a secret could not be stored (nothing else is applied in that case),
-    /// or if the launch-at-login registration failed (everything else is applied).
-    func applySettings(_ s: AppSettings, tr064Password: String?, sipPassword: String?, wireguardConfig: String? = nil) async -> String? {
+    struct ApplyResult { var saveError: String?; var loginItemMessage: String? }
+
+    static func loginItemStatus() -> LoginItemStatus {
+        switch SMAppService.mainApp.status {
+        case .enabled: return .enabled
+        case .requiresApproval: return .requiresApproval
+        case .notFound: return .notFound
+        default: return .notRegistered
+        }
+    }
+
+    /// `saveError`: a secret could not be stored (nothing else is applied then).
+    /// `loginItemMessage`: launch-at-login problem; everything else was applied and saved.
+    func applySettings(_ s: AppSettings, tr064Password: String?, sipPassword: String?, wireguardConfig: String? = nil) async -> ApplyResult {
         let pending: [(String?, String, String)] = [
             (tr064Password, SecretKey.tr064Password, "TR-064 password"),
             (sipPassword, SecretKey.sipPassword, "SIP password"),
@@ -76,14 +87,26 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
         for (value, key, label) in pending {
             guard let v = value, !v.isEmpty else { continue }
             do { try secrets.set(v, for: key) }
-            catch { return "Could not save \(label) to the Keychain: \(error.localizedDescription)" }
+            catch { return ApplyResult(saveError: "Could not save \(label) to the Keychain: \(error.localizedDescription)") }
         }
         settingsStore.save(s)
         core.updateSettings(s)
         await core.retry()
+        var message: String?
         do {
-            if s.launchAtLogin { try await SMAppService.mainApp.register() } else { try await SMAppService.mainApp.unregister() }
-        } catch { return "Launch at login failed: \(error.localizedDescription)" }
-        return nil
+            // `try await`: the Xcode 27 SDK declares register()/unregister() async.
+            switch LaunchAtLogin.action(desired: s.launchAtLogin, status: Self.loginItemStatus()) {
+            case .register:
+                try await SMAppService.mainApp.register()
+                if SMAppService.mainApp.status == .requiresApproval {
+                    message = "Approve Fritz Phone in System Settings > General > Login Items."
+                } else if SMAppService.mainApp.status == .notFound {
+                    message = "Launch at login failed: the app was not found by the system."
+                }
+            case .unregister: try await SMAppService.mainApp.unregister()
+            case .none: break
+            }
+        } catch { message = "Launch at login failed: \(error.localizedDescription)" }
+        return ApplyResult(loginItemMessage: message)
     }
 }
