@@ -20,6 +20,12 @@ public final class AppCore {
         /// Outcome of the last keypad press (never the digits); `dtmfSerial` increments with every press.
         public var dtmfStatus: String?
         public var dtmfSerial = 0
+        /// True once the call reached `.connected`.
+        public var wasConnected = false
+        /// True when this app initiated the end (hang up, cancel or decline).
+        public var endedLocally = false
+        /// User-facing wording once the call has ended.
+        public var endMessage: String?
     }
 
     public private(set) var connection: Connection = .starting
@@ -206,8 +212,14 @@ public final class AppCore {
         case .callState(let id, let state):
             guard activeCall?.id == id else { return }
             activeCall?.state = state
+            if case .connected = state { activeCall?.wasConnected = true }
             if case .ended(let code, let reason) = state {
-                if code != 200 && code != 487 { lastError = "Call ended: \(code) \(reason)" }
+                if let c = activeCall {
+                    let d = CallEndDescription.describe(code: code, reason: reason, isIncoming: c.isIncoming,
+                                                        wasConnected: c.wasConnected, endedLocally: c.endedLocally)
+                    activeCall?.endMessage = d.text
+                    if d.isError { lastError = d.text }
+                }
                 scheduleCallCleanup(activeCall?.serial ?? 0)
                 if reRegisterAfterCall {
                     reRegisterAfterCall = false
@@ -315,7 +327,7 @@ public final class AppCore {
         } catch { lastError = "Call failed: \(error.localizedDescription)" }
     }
     public func answer() { if let c = activeCall { sip.answer(c.id) } }
-    public func hangup() { if let c = activeCall { sip.hangup(c.id) } }   // also declines an unanswered incoming call
+    public func hangup() { if let c = activeCall { activeCall?.endedLocally = true; sip.hangup(c.id) } }   // also declines an unanswered incoming call
     public func toggleMute() {
         guard var c = activeCall else { return }
         c.muted.toggle(); activeCall = c; sip.setMuted(c.muted)

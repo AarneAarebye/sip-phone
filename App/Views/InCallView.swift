@@ -81,7 +81,7 @@ struct InCallView: View {
         case .ringing: Text(call.isIncoming ? "Incoming call" : "Ringing…")
         case .connected:
             if let t = connectedAt { Text(t, style: .timer).monospacedDigit() } else { Text("Connected") }
-        case .ended(let code, let reason): Text(code == 200 || code == 487 ? "Call ended" : "Call ended: \(reason)")
+        case .ended: Text(call.endMessage ?? "Call ended")
         }
     }
 

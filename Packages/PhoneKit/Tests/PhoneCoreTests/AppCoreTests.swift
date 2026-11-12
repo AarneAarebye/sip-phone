@@ -332,16 +332,70 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         r.core.dial("2")
         XCTAssertEqual(r.core.lastError, "Already in a call")
     }
-    func testAbnormalCallEndSetsErrorButNormalDoesNot() async {                // finding 9
-        let r = makeRig(reach: [true])
-        await r.core.start()
+    private func ready() async -> Rig { let r = makeRig(reach: [true]); await r.core.start(); return r }
+    func testLocalHangupOfConnectedCallSaysCallEnded() async {
+        let r = await ready()
         r.core.dial("030 1234")
-        r.core.handle(.callState(id: 7, .ended(code: 486, reason: "Busy")))
-        XCTAssertNotNil(r.core.lastError)
-        r.core.clearError()
-        r.core.dial("030 1234")
-        r.core.handle(.callState(id: 7, .ended(code: 487, reason: "Cancelled")))
+        r.core.handle(.callState(id: 7, .connected))
+        r.core.hangup()
+        r.core.handle(.callState(id: 7, .ended(code: 603, reason: "Decline")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call ended")
         XCTAssertNil(r.core.lastError)
+    }
+    func testRemoteEndOfConnectedCallSaysByOtherParty() async {
+        let r = await ready()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        r.core.handle(.callState(id: 7, .ended(code: 200, reason: "OK")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call ended by the other party")
+        XCTAssertNil(r.core.lastError)
+    }
+    func testLocalDeclineOfRingingIncomingCall() async {
+        let r = await ready()
+        r.core.handle(.incomingCall(id: 3, remote: "123", called: nil))
+        r.core.hangup()
+        r.core.handle(.callState(id: 3, .ended(code: 603, reason: "Decline")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call declined")
+        XCTAssertNil(r.core.lastError)
+    }
+    func testRemoteCancelOfRingingIncomingCallIsMissed() async {
+        let r = await ready()
+        r.core.handle(.incomingCall(id: 3, remote: "123", called: nil))
+        r.core.handle(.callState(id: 3, .ended(code: 487, reason: "Request Terminated")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Missed call")
+        XCTAssertNil(r.core.lastError)
+    }
+    func testOutgoingBusyIsNotAnError() async {
+        let r = await ready()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .ended(code: 486, reason: "Busy Here")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Busy")
+        XCTAssertNil(r.core.lastError)
+    }
+    func testLocalCancelOfOutgoingCall() async {
+        let r = await ready()
+        r.core.dial("030 1234")
+        r.core.hangup()
+        r.core.handle(.callState(id: 7, .ended(code: 487, reason: "Cancelled")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call cancelled")
+        XCTAssertNil(r.core.lastError)
+    }
+    func testUnknownFailureSetsError() async {
+        let r = await ready()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .ended(code: 500, reason: "Server Error")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call failed: 500 Server Error")
+        XCTAssertEqual(r.core.lastError, "Call failed: 500 Server Error")
+    }
+    func testEndedLocallyFlagResetsForNextCall() async {
+        let r = await ready()
+        r.core.dial("030 1234")
+        r.core.hangup()
+        r.core.handle(.callState(id: 7, .ended(code: 487, reason: "Cancelled")))
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        r.core.handle(.callState(id: 7, .ended(code: 200, reason: "OK")))
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call ended by the other party")
     }
     func testSlowPhoneBookDoesNotDelayRegistration() async {                   // finding 10
         let r = makeRig(reach: [true])
