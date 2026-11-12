@@ -16,7 +16,7 @@ You need:
 
 ## 2. Getting the app
 
-Download `SipPhone.dmg` from the [releases page](https://github.com/AarneAarebye/sip-phone/releases) (it is signed with a Developer ID and notarized by Apple, so macOS opens it without warnings), open it and drag SIP Phone to the `Applications` folder. Building from source is also possible: see the "Build" section in the [README](../README.md).
+Download the `.dmg` file from the [releases page](https://github.com/AarneAarebye/sip-phone/releases) (it is signed with a Developer ID and notarized by Apple, so macOS opens it without warnings), open it and drag SIP Phone to the `Applications` folder. Building from source is also possible: see the "Build" section in the [README](../README.md).
 
 Once you have `SipPhone.app`:
 

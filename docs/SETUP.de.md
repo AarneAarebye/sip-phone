@@ -18,7 +18,7 @@ Sie benötigen:
 
 ## 2. Die App beschaffen
 
-Laden Sie `SipPhone.dmg` von der [Releases-Seite](https://github.com/AarneAarebye/sip-phone/releases) herunter (mit Developer ID signiert und von Apple notarisiert, macOS öffnet sie ohne Warnung), öffnen Sie sie und ziehen Sie SIP Phone in den Ordner „Programme“. Der Bau aus dem Quellcode ist ebenfalls möglich: siehe Abschnitt „Build“ in der [README](../README.md).
+Laden Sie die `.dmg`-Datei von der [Releases-Seite](https://github.com/AarneAarebye/sip-phone/releases) herunter (mit Developer ID signiert und von Apple notarisiert, macOS öffnet sie ohne Warnung), öffnen Sie sie und ziehen Sie SIP Phone in den Ordner „Programme“. Der Bau aus dem Quellcode ist ebenfalls möglich: siehe Abschnitt „Build“ in der [README](../README.md).
 
 Sobald Sie `SipPhone.app` haben:
 
