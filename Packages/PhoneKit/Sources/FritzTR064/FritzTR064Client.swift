@@ -54,7 +54,7 @@ public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
         var all: [Contact] = []
         for book in books {
             let display = counts[book.name, default: 0] > 1 ? "\(book.name) (\(book.id))" : book.name
-            all += book.contacts.map { Contact(id: "\(book.id)-\($0.id)", name: $0.name, numbers: $0.numbers, phoneBook: display) }
+            all += book.contacts.map { Contact(id: "\(book.id)-\($0.id)", name: $0.name, numbers: $0.numbers, phoneBook: display, phoneBookID: book.id) }
         }
         return all
     }

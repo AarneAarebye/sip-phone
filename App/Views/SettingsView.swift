@@ -90,6 +90,21 @@ struct SettingsView: View {
                 TextField("Country code", text: $s.countryCode)
                 TextField("Local area code (e.g. 030)", text: $s.areaCode)
             }
+            Section("Phone books") {
+                if env.core.phoneBooks.isEmpty {
+                    Text("Not loaded yet").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ForEach(env.core.phoneBooks) { book in
+                        Toggle("\(book.name) (\(book.contactCount))", isOn: Binding(
+                            get: { !s.disabledPhoneBooks.contains(book.id) },
+                            set: { on in
+                                s.disabledPhoneBooks.removeAll { $0 == book.id }
+                                if !on { s.disabledPhoneBooks.append(book.id) }
+                            }))
+                    }
+                }
+                Text("Switched-off phone books are hidden in Contacts and not used to show caller names.").font(.caption2)
+            }
             Section("VPN (WireGuard)") {
                 if wgStored && !replacingWG {
                     HStack {

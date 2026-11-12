@@ -70,6 +70,7 @@ Klicken Sie auf das Menüleistensymbol, dann auf „Settings…“. Füllen Sie 
 | **Local area code (e.g. 030)** | Ihre Ortsvorwahl, damit auch Nummern ohne Vorwahl funktionieren. |
 | **Keep Mac awake while on power** | Standardmäßig an. Verhindert den Ruhezustand des Macs im Netzbetrieb, damit er klingeln kann. |
 | **Launch at login** | Startet die App bei der Anmeldung. macOS bittet Sie möglicherweise, das in den Systemeinstellungen unter Allgemein > Anmeldeobjekte & Erweiterungen zu bestätigen (System Settings > General > Login Items; Bezeichnungen können je nach macOS-Version abweichen). |
+| **Phone books** | Ein Schalter pro FRITZ!Box-Telefonbuch, standardmäßig alle an; neue Telefonbücher starten eingeschaltet. Ein ausgeschaltetes Telefonbuch ist unter Contacts ausgeblendet und wird nicht für die Anzeige von Anrufernamen verwendet. Wird mit Save übernommen. Zeigt „Not loaded yet“, bis zum ersten erfolgreichen Laden. |
 | **VPN (WireGuard)** | Nur für die Nutzung unterwegs, siehe Abschnitt 7. |
 | **Keypad tone method** (Diagnostics) | Auf „In-band audio tones (recommended)“ belassen. |
 
@@ -104,7 +105,7 @@ Für Mitteilungen öffnen Sie Systemeinstellungen > Mitteilungen > SIP Phone und
 
 **Wählen über den Tab Keypad.** Geben Sie eine Nummer ein oder tippen Sie sie an und klicken Sie auf „Call“. Für internationale Nummern halten Sie die Taste 0 lange gedrückt oder klicken auf die Schaltfläche +, um ein führendes + einzugeben. Beides funktioniert nur als erstes Zeichen.
 
-**Wählen über Contacts.** Das Suchfeld findet Namen, Nummern und Telefonbuchnamen. Jeder Kontakt zeigt, aus welchem Telefonbuch er stammt. Klicken Sie auf eine Nummer, um sie anzurufen. Sie können auch eine Nummer ins Suchfeld eingeben und die Eingabetaste drücken, wenn nichts gefunden wird.
+**Wählen über Contacts.** Das Suchfeld findet Namen, Nummern und Telefonbuchnamen. Jeder Kontakt zeigt, aus welchem Telefonbuch er stammt. Sind zwei oder mehr Telefonbücher eingeschaltet, schränkt ein Menü neben dem Suchfeld („All phone books“ oder ein einzelnes Telefonbuch) die Liste ein; es wirkt zusammen mit der Suche. Klicken Sie auf eine Nummer, um sie anzurufen. Sie können auch eine Nummer ins Suchfeld eingeben und die Eingabetaste drücken, wenn nichts gefunden wird.
 
 **Wählen über History.** Klicken Sie bei einem beliebigen Eintrag auf die Telefonschaltfläche.
 

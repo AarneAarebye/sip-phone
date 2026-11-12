@@ -68,6 +68,7 @@ Click the menu bar icon, then Settings…. Fill in the fields below, then click 
 | **Local area code (e.g. 030)** | Your local area code, so numbers dialled without one still work. |
 | **Keep Mac awake while on power** | On by default. Keeps the Mac from idle sleep on mains power so it can ring. |
 | **Launch at login** | Starts the app when you sign in. macOS may ask you to approve it in System Settings > General > Login Items. |
+| **Phone books** | One switch per FRITZ!Box phone book, all on by default; new books start on. A switched-off book is hidden in Contacts and not used to show caller names. Applied with Save. Shows "Not loaded yet" until the first successful load. |
 | **VPN (WireGuard)** | Only for use away from home, see section 7. |
 | **Keypad tone method** (Diagnostics) | Leave on "In-band audio tones (recommended)". |
 
@@ -100,7 +101,7 @@ For notifications, open System Settings > Notifications > SIP Phone and set Show
 
 **Dial from the Keypad tab.** Type or tap a number and click Call. For international numbers, long-press the 0 key or click the + button to enter a leading +. Both only work as the first character.
 
-**Dial from Contacts.** The search box matches names, numbers and phone book names. Each contact shows which phone book it comes from. Click a number to call it. You can also type a number into the search box and press Return if nothing matches.
+**Dial from Contacts.** The search box matches names, numbers and phone book names. Each contact shows which phone book it comes from. With two or more phone books switched on, a menu next to the search box ("All phone books" or one book) narrows the list; it combines with the search. Click a number to call it. You can also type a number into the search box and press Return if nothing matches.
 
 **Dial from History.** Click the phone button on any entry.
 

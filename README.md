@@ -10,6 +10,7 @@ Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon
 
 - SIP registration with the FRITZ!Box, outgoing and incoming calls, mute, DTMF.
 - Incoming call notifications with Answer and Decline; the caller is looked up in all FRITZ!Box phone books (merged). The called number is shown when the FRITZ!Box sends it (best effort, depends on the SIP headers).
+- Phone books can be switched on or off individually in Settings (off: hidden in Contacts and not used for caller names); the Contacts tab has a phone book filter.
 - Call history from the FRITZ!Box call list (TR-064), including missed calls and fax calls.
 - Contacts cached locally; cached contacts are used when the FRITZ!Box cannot be reached.
 - WireGuard VPN for use away from home. At home the app does not start it.

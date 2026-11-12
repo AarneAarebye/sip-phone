@@ -27,10 +27,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var keepAwakeOnPower = true
     public var launchAtLogin = false
     public var dtmfMethod: DTMFMethod = .inband
+    /// Ids of FRITZ!Box phone books switched off (hidden in Contacts, not used for caller names). New books are on.
+    public var disabledPhoneBooks: [String] = []
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case fritzHost, sipUser, tr064User, countryCode, areaCode, keepAwakeOnPower, launchAtLogin, dtmfMethod
+        case disabledPhoneBooks, fritzHost, sipUser, tr064User, countryCode, areaCode, keepAwakeOnPower, launchAtLogin, dtmfMethod
     }
 
     /// Tolerant: a missing (older stored settings) or unknown value (including the removed "both") keeps the default for that field only.
@@ -48,6 +50,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         keepAwakeOnPower = value(.keepAwakeOnPower, d.keepAwakeOnPower)
         launchAtLogin = value(.launchAtLogin, d.launchAtLogin)
         dtmfMethod = value(.dtmfMethod, d.dtmfMethod)
+        disabledPhoneBooks = value(.disabledPhoneBooks, d.disabledPhoneBooks)
     }
 }
 

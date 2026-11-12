@@ -5,13 +5,33 @@ struct ContactsView: View {
     let core: AppCore
     @State private var query = ""
 
-    private var filtered: [Contact] {
-        query.isEmpty ? core.contacts : core.contacts.filter { ContactFilter.matches($0, query) }
+    @State private var selectedBook: String?   // nil = all phone books
+
+    private var enabledBooks: [PhoneBookSummary] {
+        core.phoneBooks.filter { !core.settings.disabledPhoneBooks.contains($0.id) }
     }
+    /// The selection, or nil when that book vanished or was switched off.
+    private var activeBook: String? { enabledBooks.contains { $0.id == selectedBook } ? selectedBook : nil }
+    private var filtered: [Contact] {
+        PhoneBooks.filter(core.visibleContacts, bookID: activeBook, query: query)
+    }
+    private var allOff: Bool { !core.phoneBooks.isEmpty && enabledBooks.isEmpty }
     var body: some View {
         VStack {
-            TextField("Search or type a number", text: $query).textFieldStyle(.roundedBorder).padding(.horizontal, 8)
-                .onSubmit { if filtered.isEmpty { Microphone.dial(query, core: core) } }
+            HStack {
+                TextField("Search or type a number", text: $query).textFieldStyle(.roundedBorder)
+                    .onSubmit { if filtered.isEmpty { Microphone.dial(query, core: core) } }
+                if enabledBooks.count >= 2 {
+                    Picker("Phone book", selection: Binding(get: { activeBook }, set: { selectedBook = $0 })) {
+                        Text("All phone books").tag(String?.none)
+                        ForEach(enabledBooks) { Text($0.name).tag(Optional($0.id)) }
+                    }.labelsHidden().fixedSize()
+                }
+            }.padding(.horizontal, 8)
+            if allOff {
+                Text("All phone books are switched off — turn them on in Settings.")
+                    .foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
             List(filtered) { c in
                 VStack(alignment: .leading) {
                     Text(c.name.isEmpty ? (c.numbers.first?.number ?? "—") : c.name).font(.headline)
@@ -24,6 +44,7 @@ struct ContactsView: View {
                         }.buttonStyle(.link)
                     }
                 }
+            }
             }
         }
     }

@@ -30,6 +30,10 @@ public final class AppCore {
 
     public private(set) var connection: Connection = .starting
     public private(set) var contacts: [Contact] = []
+    /// All known phone books (including switched-off ones).
+    public var phoneBooks: [PhoneBookSummary] { PhoneBooks.summaries(from: contacts) }
+    /// Contacts of switched-on books only.
+    public var visibleContacts: [Contact] { PhoneBooks.visible(contacts, disabled: settings.disabledPhoneBooks) }
     public private(set) var history: [CallRecord] = []
     public private(set) var activeCall: ActiveCall?
     public private(set) var phoneBookNotice: String?
@@ -198,7 +202,7 @@ public final class AppCore {
     public func refreshHistory() async { if let h = try? await phoneBook.loadCallList() { history = h } }
 
     private func rebuildIndex() {
-        index = PhoneBookIndex(contacts: contacts, countryCode: settings.countryCode,
+        index = PhoneBookIndex(contacts: visibleContacts, countryCode: settings.countryCode,
                                areaCode: settings.areaCode.isEmpty ? nil : settings.areaCode)
     }
 
