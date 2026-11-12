@@ -64,10 +64,10 @@ check_archs() {   # $1 = label, $2 = executable path; must contain arm64 and x86
 NOTARY_ARGS=()
 notary_args() {   # fills NOTARY_ARGS with the notarytool credential flags; the key is passed as a file path
   NOTARY_ARGS=()
-  if [ -f "$NOTARY_CONFIG_DIR/api-key.env" ]; then
+  if [ -e "$NOTARY_CONFIG_DIR/api-key.env" ] || [ -L "$NOTARY_CONFIG_DIR/api-key.env" ]; then
     notary_cfg_dir_check "$NOTARY_CONFIG_DIR"
     notary_cfg_load "$NOTARY_CONFIG_DIR" || die "Notary config in $NOTARY_CONFIG_DIR is invalid (see docs/RELEASE.md, 'Notarization credentials')."
-    echo "Notary credentials: API key from $NOTARY_CONFIG_DIR (key file $NOTARY_KEY_NAME)"
+    echo "notary: API key from $NOTARY_CONFIG_DIR"
     NOTARY_ARGS=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
   else
     echo "Notary credentials: no api-key.env in $NOTARY_CONFIG_DIR, falling back to keychain profile '$NOTARY_PROFILE'"

@@ -47,12 +47,17 @@ Download both `.provisionprofile` files and double-click each to install them (X
 `api-key.env` holds three `KEY=VALUE` lines (quotes, blank lines and `#` comments are allowed; other keys are ignored):
 
 ```
-KEY_FILE=AuthKey_<NAME>_<KEYID>.p8    # file name in the same folder, no path separators
-KEY_ID=<key id>                       # letters, digits, . _ -
-ISSUER=<issuer id>                    # the UUID shown on the App Store Connect Keys page
+# KEY_FILE: file name in the same folder, no path separators
+KEY_FILE=AuthKey_<NAME>_<KEYID>.p8
+# KEY_ID: letters, digits, . _ -
+KEY_ID=<key id>
+# ISSUER: the UUID shown on the App Store Connect Keys page
+ISSUER=<issuer id>
 ```
 
-The script reads only these three keys with a small parser; it never `source`s the file, never prints the values and passes the key to `notarytool` as a file path (`--key`, `--key-id`, `--issuer`), so no secret appears on a command line or in output. It stops with a `chmod 600` hint if `api-key.env` or the key file is missing, not a regular file, or accessible by group or others, and warns (does not stop) when the folder is not mode 700 (`chmod 700 ~/.config/sipphone-notary`).
+Format rules: one `KEY=value` per line, no spaces around `=`, no `export`, no inline comments (a comment must be on its own line starting with `#`), single or double quotes around the value are allowed, the last duplicate wins, and a UTF-8 BOM on the first line is not supported.
+
+The script reads only these three keys with a small parser; it never `source`s the file, never prints the values, and passes the key to `notarytool` as a file path (`--key`, `--key-id`, `--issuer`), so the private key never appears on a command line or in output. The key id and issuer are identifiers, not secrets, but they are visible to local users in `ps` while `notarytool` runs; the script itself never prints them or the key file name. It stops with a `chmod 600` hint if `api-key.env` or the key file is missing, not a regular file, or accessible by group or others, and warns (does not stop) when the folder is not mode 700 (`chmod 700 ~/.config/sipphone-notary`).
 
 The API key needs the Developer role or higher (App Store Connect > Users and Access > Integrations > Team Keys); such a key can notarize. The folder must never be committed. It lives outside the repo, and nothing in the repository references the key id, issuer or key file.
 

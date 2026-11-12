@@ -89,6 +89,12 @@ expect_fail "KEY_FILE target is a directory" "$d"
 d="$(new_dir)"; write_env "$d" "$(valid_env)"; mv "$d/$DUMMY_KEY" "$d/real.p8"; ln -s real.p8 "$d/$DUMMY_KEY"
 expect_fail "KEY_FILE target is a symlink" "$d"
 
+# api-key.env is a dangling symlink / a directory
+d="$(new_dir)"; ln -s missing-target "$d/api-key.env"
+expect_fail "api-key.env dangling symlink" "$d"
+d="$(new_dir)"; mkdir "$d/api-key.env"
+expect_fail "api-key.env is a directory" "$d"
+
 # comments, blank lines, quotes, whitespace, CRLF
 d="$(new_dir)"; write_env "$d" "# comment KEY_ID=NOPE\n\n  KEY_FILE=\"$DUMMY_KEY\"  \nKEY_ID='$DUMMY_ID'\r\n\n# trailing\nISSUER=\"$DUMMY_ISSUER\"\n"
 notary_cfg_load "$d" 2>/dev/null && [ "$NOTARY_KEY_ID" = "$DUMMY_ID" ] && [ "$NOTARY_KEY_NAME" = "$DUMMY_KEY" ] \
@@ -104,6 +110,9 @@ d="$(new_dir)"; chmod 755 "$d"
 w="$(notary_cfg_dir_check "$d" 2>&1)"; rc=$?
 { [ $rc -eq 0 ] && case "$w" in *"chmod 700 ~/.config/sipphone-notary"*) true ;; *) false ;; esac; } \
   && ok "folder mode 755 warns with chmod 700 hint" || fail "folder mode 755 warns with chmod 700 hint"
+real="$(new_dir)"; ln -s "$real" "$TMP/linked"
+w="$(notary_cfg_dir_check "$TMP/linked" 2>&1)"
+[ -z "$w" ] && ok "symlinked folder (target 700) is silent" || fail "symlinked folder (target 700) is silent"
 w="$(notary_cfg_dir_check "$(new_dir)" 2>&1)"
 [ -z "$w" ] && ok "folder mode 700 is silent" || fail "folder mode 700 is silent"
 

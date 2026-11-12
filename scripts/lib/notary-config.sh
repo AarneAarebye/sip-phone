@@ -12,7 +12,7 @@
 # notary_cfg_dir_check DIR -> warns on stderr when the folder is not mode 700; always returns 0.
 
 notary_cfg_mode() {   # $1 = path; prints the octal permission bits
-  stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1" 2>/dev/null
+  stat -L -f %Lp "$1" 2>/dev/null || stat -L -c %a "$1" 2>/dev/null
 }
 
 notary_cfg_err() { echo "ERROR: $*" >&2; }
