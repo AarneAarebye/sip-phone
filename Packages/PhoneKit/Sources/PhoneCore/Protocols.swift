@@ -4,7 +4,7 @@ public enum RegistrationState: Equatable, Sendable { case unregistered, register
 public enum CallState: Equatable, Sendable { case calling, ringing, connected, ended(code: Int, reason: String) }
 public enum SIPEvent: Equatable, Sendable {
     case registration(RegistrationState)
-    case incomingCall(id: Int, remote: String)
+    case incomingCall(id: Int, remote: String, called: String?)
     case callState(id: Int, CallState)
 }
 public struct SIPConfig: Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {

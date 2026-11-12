@@ -13,12 +13,12 @@ struct ContactsView: View {
     var body: some View {
         VStack {
             TextField("Search or type a number", text: $query).textFieldStyle(.roundedBorder).padding(.horizontal, 8)
-                .onSubmit { if filtered.isEmpty { core.dial(query) } }
+                .onSubmit { if filtered.isEmpty { Microphone.dial(query, core: core) } }
             List(filtered) { c in
                 VStack(alignment: .leading) {
                     Text(c.name.isEmpty ? (c.numbers.first?.number ?? "—") : c.name).font(.headline)
                     ForEach(c.numbers, id: \.number) { n in
-                        Button { core.dial(n.number) } label: {
+                        Button { Microphone.dial(n.number, core: core) } label: {
                             Label("\(n.type) \(n.number)", systemImage: "phone").font(.caption)
                         }.buttonStyle(.link)
                     }

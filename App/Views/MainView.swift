@@ -8,10 +8,24 @@ struct MainView: View {
     var body: some View {
         VStack(spacing: 0) {
             statusBar
+            if let e = core.lastError {
+                HStack(alignment: .top) {
+                    Text(e).font(.caption).foregroundStyle(.red).lineLimit(3)
+                    Spacer()
+                    Button { core.clearError() } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.borderless).help("Dismiss")
+                }.padding(.horizontal, 8).padding(.top, 4)
+            }
             Picker("", selection: $tab) {
-                Text("Contacts").tag(0); Text("History").tag(1)
+                Text("Contacts").tag(0); Text("History").tag(1); Text("Keypad").tag(2)
             }.pickerStyle(.segmented).padding(8)
-            Group { tab == 0 ? AnyView(ContactsView(core: core)) : AnyView(HistoryView(core: core)) }
+            Group {
+                switch tab {
+                case 0: ContactsView(core: core)
+                case 1: HistoryView(core: core)
+                default: DialTab(core: core)
+                }
+            }
             Divider()
             HStack {
                 SettingsLink { Text("Settings…") }

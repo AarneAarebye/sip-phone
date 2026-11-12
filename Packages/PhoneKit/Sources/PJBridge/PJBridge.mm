@@ -8,7 +8,7 @@ using namespace pj;
 
 @interface PJBridge ()
 - (void)handleRegCode:(int)code reason:(const std::string &)reason;
-- (void)handleIncoming:(int)callId;
+- (void)handleIncoming:(int)callId wholeMsg:(const std::string &)msg;
 - (void)handleCallState:(int)callId;
 - (void)applyMuteToCapture;
 - (void)endAllCallsWithReason:(NSString *)reason;
@@ -18,7 +18,7 @@ class BridgeAccount : public Account {
 public:
     explicit BridgeAccount(PJBridge *owner) : owner_(owner) {}
     void onRegState(OnRegStateParam &prm) override { [owner_ handleRegCode:prm.code reason:prm.reason]; }
-    void onIncomingCall(OnIncomingCallParam &prm) override { [owner_ handleIncoming:prm.callId]; }
+    void onIncomingCall(OnIncomingCallParam &prm) override { [owner_ handleIncoming:prm.callId wholeMsg:prm.rdata.wholeMsg]; }
 private:
     __unsafe_unretained PJBridge *owner_;   // the bridge owns (and outlives) its account
 };
@@ -152,14 +152,33 @@ static NSError *PJError(const std::string &msg) {
     }
 }
 
-- (void)handleIncoming:(int)callId {
+/// Best effort: value of the P-Called-Party-ID header of the INVITE (raw, parsed in Swift), or nil.
+static NSString *CalledPartyHeader(const std::string &msg) {
+    NSString *m = [NSString stringWithUTF8String:msg.c_str()];
+    if (!m) return nil;
+    NSRange head = [m rangeOfString:@"\r\n\r\n"];
+    NSString *headers = head.location == NSNotFound ? m : [m substringToIndex:head.location];
+    for (NSString *line in [headers componentsSeparatedByString:@"\r\n"]) {
+        if ([line rangeOfString:@"P-Called-Party-ID:" options:NSCaseInsensitiveSearch | NSAnchoredSearch].location != NSNotFound) {
+            NSString *v = [[line substringFromIndex:[line rangeOfString:@":"].location + 1]
+                           stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+            return v.length ? v : nil;
+        }
+    }
+    return nil;
+}
+
+- (void)handleIncoming:(int)callId wholeMsg:(const std::string &)msg {
     if (!_acc) return;
     try {
         std::unique_ptr<BridgeCall> call(new BridgeCall(*_acc, callId, self));
-        NSString *remote = @(call->getInfo().remoteUri.c_str());
+        CallInfo info = call->getInfo();
+        NSString *remote = @(info.remoteUri.c_str());
+        // P-Called-Party-ID if the box sends it, else the To URI (the number that was dialled).
+        NSString *called = CalledPartyHeader(msg) ?: @(info.localUri.c_str());
         try { CallOpParam ringing; ringing.statusCode = PJSIP_SC_RINGING; call->answer(ringing); } catch (...) {}
         _calls[callId] = std::move(call);
-        [self.delegate incomingCall:callId from:remote];
+        [self.delegate incomingCall:callId from:remote called:called];
     } catch (...) {}
 }
 

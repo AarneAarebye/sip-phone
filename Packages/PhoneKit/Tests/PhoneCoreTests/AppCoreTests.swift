@@ -119,9 +119,15 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
     func testIncomingCallResolvesNameFromPhoneBook() async {
         let r = makeRig(reach: [true])
         await r.core.start()
-        r.core.handle(.incomingCall(id: 3, remote: "+49301234"))
+        r.core.handle(.incomingCall(id: 3, remote: "+49301234", called: nil))
         XCTAssertEqual(r.core.activeCall?.displayName, "Erika")
         XCTAssertEqual(r.core.activeCall?.isIncoming, true)
+    }
+    func testCalledNumberFlowsIntoActiveCall() async {
+        let r = makeRig(reach: [true])
+        await r.core.start()
+        r.core.handle(.incomingCall(id: 4, remote: "+49301234", called: "5551234"))
+        XCTAssertEqual(r.core.activeCall?.calledNumber, "5551234")
     }
     func testDialSetsActiveCallAndEndedClearsIt() async {
         let r = makeRig(reach: [true])
@@ -260,14 +266,14 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
     func testEventsFlowThroughRealLoop() async {                               // finding 6
         let r = makeRig(reach: [true])
         await r.core.start()
-        r.sip.emit(.incomingCall(id: 3, remote: "+49301234"))
+        r.sip.emit(.incomingCall(id: 3, remote: "+49301234", called: nil))
         await waitUntil { r.core.activeCall != nil }
         XCTAssertEqual(r.core.activeCall?.displayName, "Erika")
     }
     func testEventLoopRunsEvenWhenOffline() async {                            // finding 6
         let r = makeRig(reach: [false]); r.vpn.error = FritzTestError.down
         await r.core.start()
-        r.sip.emit(.incomingCall(id: 3, remote: "+49301234"))
+        r.sip.emit(.incomingCall(id: 3, remote: "+49301234", called: nil))
         await waitUntil { r.core.activeCall != nil }
         XCTAssertNotNil(r.core.activeCall)
     }
@@ -275,7 +281,7 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         let r = makeRig(reach: [true])
         await r.core.start()
         r.core.dial("030 1234")
-        r.core.handle(.incomingCall(id: 9, remote: "123"))
+        r.core.handle(.incomingCall(id: 9, remote: "123", called: nil))
         XCTAssertEqual(r.sip.hangups, [9])
         XCTAssertEqual(r.core.activeCall?.id, 7)
     }

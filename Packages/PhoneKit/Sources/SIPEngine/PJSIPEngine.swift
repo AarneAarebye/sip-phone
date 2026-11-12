@@ -99,8 +99,16 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
         guard statusCode >= 200 else { return nil }
         return .registration(statusCode < 300 ? .registered : .failed(code: statusCode, reason: reason))
     }
-    public nonisolated func incomingCall(_ callId: Int, from remote: String) {
-        MainActor.assumeIsolated { continuation.yield(.incomingCall(id: callId, remote: Self.userPart(of: remote))) }
+    public nonisolated func incomingCall(_ callId: Int, from remote: String, called: String) {
+        MainActor.assumeIsolated {
+            continuation.yield(.incomingCall(id: callId, remote: Self.userPart(of: remote), called: Self.calledNumber(from: called)))
+        }
+    }
+
+    /// Own number from a P-Called-Party-ID value or To URI; nil when empty.
+    nonisolated static func calledNumber(from raw: String) -> String? {
+        let n = userPart(of: raw.trimmingCharacters(in: .whitespaces))
+        return n.isEmpty ? nil : n
     }
     public nonisolated func callStateChanged(_ callId: Int, state: String, statusCode code: Int, reason: String) {
         MainActor.assumeIsolated {

@@ -12,7 +12,7 @@ struct HistoryView: View {
                     Text(r.date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { core.dial(r.remoteNumber) } label: { Image(systemName: "phone") }.buttonStyle(.borderless)
+                Button { Microphone.dial(r.remoteNumber, core: core) } label: { Image(systemName: "phone") }.buttonStyle(.borderless)
             }
         }
         .task { await core.refreshHistory() }

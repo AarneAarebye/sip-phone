@@ -9,6 +9,7 @@ public final class AppCore {
         public var id: Int
         public var remote: String
         public var displayName: String?
+        public var calledNumber: String?
         public var isIncoming: Bool
         public var state: CallState
         public var serial: Int
@@ -154,9 +155,9 @@ public final class AppCore {
 
     public func handle(_ event: SIPEvent) {
         switch event {
-        case .incomingCall(let id, let remote):
+        case .incomingCall(let id, let remote, let called):
             if let c = activeCall, !isEnded(c) { sip.hangup(id); return }   // busy: reject the second call
-            beginCall(ActiveCall(id: id, remote: remote, displayName: index.name(for: remote), isIncoming: true, state: .ringing, serial: 0))
+            beginCall(ActiveCall(id: id, remote: remote, displayName: index.name(for: remote), calledNumber: called, isIncoming: true, state: .ringing, serial: 0))
         case .callState(let id, let state):
             guard activeCall?.id == id else { return }
             activeCall?.state = state

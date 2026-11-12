@@ -8,6 +8,11 @@ final class UserPartTests: XCTestCase {
     func testParamsAndNoHost() { XCTAssertEqual(PJSIPEngine.userPart(of: "<sip:42;tag=x>"), "42") }
 }
 
+final class CalledNumberTests: XCTestCase {
+    func testHeaderValue() { XCTAssertEqual(PJSIPEngine.calledNumber(from: "<sip:0301234@fritz.box>;foo=1"), "0301234") }
+    func testEmpty() { XCTAssertNil(PJSIPEngine.calledNumber(from: "  ")) }
+}
+
 final class RegistrationMappingTests: XCTestCase {
     func testPendingOutcomes() {
         XCTAssertEqual(PJSIPEngine.pendingOutcome(statusCode: 200, reason: "OK"), .success)

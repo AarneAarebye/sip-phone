@@ -4,7 +4,8 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol PJBridgeDelegate <NSObject>
 /// Only final results are reported (statusCode >= 200).
 - (void)registrationChanged:(NSInteger)statusCode reason:(NSString *)reason;
-- (void)incomingCall:(NSInteger)callId from:(NSString *)remote;
+/// `called`: best-effort raw URI/header of the own number that was called (P-Called-Party-ID, else To); may be empty.
+- (void)incomingCall:(NSInteger)callId from:(NSString *)remote called:(NSString *)called;
 /// state: "calling" | "ringing" | "connected" | "ended"
 - (void)callStateChanged:(NSInteger)callId state:(NSString *)state statusCode:(NSInteger)code reason:(NSString *)reason;
 @end
