@@ -60,7 +60,7 @@ The FRITZ!Box typically has several phone numbers, including a fax number. Outgo
 ## Behaviour notes
 
 - The Mac only rings while it is awake. While on AC power the app holds a no-idle-sleep assertion (can be switched off in Settings). Calls missed during sleep appear in History after wake.
-- The FRITZ!Box TLS certificate is pinned on first use. After replacing the FRITZ!Box, reset the pin: `defaults delete com.aarneaarebye.fritzphone tr064CertFingerprint`.
+- The FRITZ!Box TLS certificate is pinned on first use. The pin is also how the app recognises your own FRITZ!Box at home: another FRITZ!Box (for example on a visited network) counts as "not at home" and the VPN is started. After replacing or resetting your FRITZ!Box, click "Forget pinned certificate" in Settings; until then the app reports "The FRITZ!Box certificate changed…" or keeps starting the VPN at home. The app is sandboxed, so a plain `defaults delete com.aarneaarebye.fritzphone …` does not reach its preferences; from Terminal, quit the app and run `defaults delete ~/Library/Containers/com.aarneaarebye.fritzphone/Data/Library/Preferences/com.aarneaarebye.fritzphone tr064CertFingerprint`.
 - Microphone access is required for calls.
 
 ## Dev tools

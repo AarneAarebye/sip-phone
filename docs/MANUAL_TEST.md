@@ -28,3 +28,14 @@ Record pass or fail for each line. Needs a FRITZ!Box with an IP telephone and TR
 19. Wi-Fi switch: after changing networks the registration recovers.
 20. Keep-awake: `pmset -g assertions` shows the app's assertion on AC power, and not on battery or when the setting is off.
 21. Intel iMac (macOS Tahoe 26): the app launches and items 1 to 3 pass.
+
+## Final review scenarios
+
+22. Network change during a call: during a connected call, switch Wi-Fi (or plug in Ethernet). The call continues (audio may pause briefly); after hang-up the registration is refreshed and the status returns to "Connected".
+23. Settings Save during a call: during a connected call, open Settings and click Save (with and without changes). The call continues; the re-registration happens after hang-up.
+24. Incoming call after a long idle period: leave the Mac idle (display off, app in the background) for an hour or more on AC power, then call it. It rings promptly (no App Nap delay); `pmset -g assertions` lists the app's user-initiated activity.
+25. Visiting another FRITZ!Box network: on a network whose router is a different FRITZ!Box (reachable at the same address), the app does not treat it as home: it starts the VPN and registers through the tunnel.
+26. WAN IP change while on VPN: away from home with the tunnel up, make the home FRITZ!Box get a new public IP (reconnect the internet connection in the FRITZ!Box). The app notices the FRITZ!Box is unreachable, restarts the tunnel and registers again; a VPN error, if any, is shown in the window.
+27. Typing in another app while a call rings: keep typing (including Return) in another app when an incoming call arrives. The call panel appears but does not take keyboard focus and the call is not answered; clicking Answer (or clicking the panel and pressing Return) answers.
+28. The app must be in /Applications for the system extension to activate: run it from elsewhere (for example the DMG or Downloads) and confirm the VPN activation fails with a clear message; after moving it to /Applications, activation works.
+29. Forget pinned certificate: in Settings, "Forget pinned certificate" clears the pin; the next connection pins the current certificate again and the phone book loads.
