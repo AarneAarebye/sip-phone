@@ -3,8 +3,6 @@ import Network
 import PhoneCore
 import FritzTR064
 
-@MainActor final class NoopPower: PowerAssertionControlling { func setPreventSleep(_ on: Bool) {} }   // replaced in Task 11
-
 /// TCP probe of the TR-064 TLS port the client uses — no ATS involved.
 struct TCPReachability: Reachability {
     let host: @Sendable () -> String

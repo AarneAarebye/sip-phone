@@ -3,6 +3,7 @@ import PhoneCore
 import FritzTR064
 import SIPEngine
 import VPN
+import SystemAdapters
 
 final class UserDefaultsPinStore: PinStore, @unchecked Sendable {
     func load() -> String? { UserDefaults.standard.string(forKey: "tr064CertFingerprint") }
@@ -43,6 +44,8 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
     let settingsStore = SettingsStore()
     let secrets: SecretStore = KeychainSecretStore()
     let core: AppCore
+    /// Held for the app lifetime: the IOPS run-loop callback keeps an unretained pointer to it.
+    lazy var monitors = SystemMonitors(core: core)
 
     init() {
         let store = settingsStore, secrets = secrets
@@ -53,7 +56,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
         }
         core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.fritzphone.PacketTunnel"),
                        reachability: TCPReachability(host: { store.load().fritzHost }),
-                       power: NoopPower(), cache: JSONFileContactCache.standard(), settings: store.load(),
+                       power: IOKitPowerAssertion(), cache: JSONFileContactCache.standard(), settings: store.load(),
                        sipConfig: {
                            let s = store.load()
                            guard !s.sipUser.isEmpty, let pw = secrets.get(SecretKey.sipPassword) else { return nil }

@@ -11,11 +11,13 @@ import AppKit
             _ = env.core.activeCall          // establishes the observation (any change of the call re-runs this)
             callWindow.update(); notifications.update()
         }
+        env.monitors.start()
         Task { await env.core.start() }
     }
     /// Lets shutdown (unregister, VPN stop) finish, but never blocks quitting for more than a few seconds.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         var replied = false
+        env.monitors.stop()
         func reply() { guard !replied else { return }; replied = true; NSApp.reply(toApplicationShouldTerminate: true) }
         Task { @MainActor in await env.core.shutdown(); reply() }
         Task { @MainActor in try? await Task.sleep(for: .seconds(4)); reply() }

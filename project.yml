@@ -32,6 +32,8 @@ targets:
         product: SIPEngine
       - package: PhoneKit
         product: VPN
+      - package: PhoneKit
+        product: SystemAdapters
       - target: PacketTunnel   # embedded in Contents/Library/SystemExtensions
     info:
       path: App/Info.plist
