@@ -22,7 +22,13 @@ targets:
   SipPhone:
     type: application
     platform: macOS
-    sources: [App]
+    sources:
+      - App
+      # Licence texts shown in the About window (Contents/Resources); checked by scripts/check-licenses.sh.
+      - path: LICENSE
+        buildPhase: resources
+      - path: THIRD_PARTY_LICENSES.md
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.sipphone

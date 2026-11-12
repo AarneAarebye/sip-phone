@@ -42,6 +42,7 @@ struct MainView: View {
             Divider()
             HStack {
                 SettingsLink { Text("Settings…") }
+                Button("About SIP Phone…") { AboutWindows.showAbout() }
                 Spacer()
                 Button("Quit") { NSApplication.shared.terminate(nil) }
             }.padding(8)

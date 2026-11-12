@@ -144,6 +144,14 @@ struct SettingsView: View {
                     }
                 }
             }
+            Section("About & licences") {
+                Text("SIP Phone is free software under the GNU GPL v3.0 or later. Source code and licences:").font(.caption)
+                HStack {
+                    Link(AppInfo.repositoryURL.absoluteString, destination: AppInfo.repositoryURL).font(.caption)
+                    Spacer()
+                    Button("About SIP Phone…") { AboutWindows.showAbout() }
+                }
+            }
         }
         .formStyle(.grouped).frame(width: 440).padding()
         .confirmationDialog("Remove the WireGuard configuration from the Keychain?", isPresented: $confirmRemoveWG) {
