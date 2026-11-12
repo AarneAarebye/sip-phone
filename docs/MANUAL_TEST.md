@@ -43,3 +43,4 @@ Record pass or fail for each line. Needs a FRITZ!Box with an IP telephone and TR
 28. The app must be in /Applications for the system extension to activate: run it from elsewhere (for example the DMG or Downloads) and confirm the VPN activation fails with a clear message; after moving it to /Applications, activation works.
 29. Forget pinned certificate: in Settings, "Forget pinned certificate" clears the pin; the next connection pins the current certificate again and the phone book loads.
 30. Keypad: long-press 0 and the + button type a leading +; both are unavailable once the field has text; the in-call keypad has neither.
+31. Settings Save: a successful Save closes the Settings window (Dock icon disappears); on a save error or a login-item hint the window stays open and shows the message.

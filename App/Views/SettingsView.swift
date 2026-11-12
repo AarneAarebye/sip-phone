@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var confirmRemoveWG = false
     @State private var testingLogin = false
     @State private var loginReport: String?
+    @State private var windowRef = WindowRef()
 
     private func refreshStored() {
         sipStored = env.isStored(SecretKey.sipPassword)
@@ -123,6 +124,9 @@ struct SettingsView: View {
                     saveError = r.saveError; loginItemMessage = r.loginItemMessage
                     if saveError == nil { tr064Password = ""; sipPassword = ""; wireguard = ""; replacingWG = false }
                     refreshStored()
+                    if SettingsSavePolicy.shouldCloseAfterSave(saveError: saveError, loginItemMessage: loginItemMessage) {
+                        windowRef.window?.performClose(nil)
+                    }
                 }
             }
         }
@@ -141,5 +145,21 @@ struct SettingsView: View {
             s.launchAtLogin = LaunchAtLogin.isOn(AppEnvironment.loginItemStatus())
         }
         .background(SettingsWindowActivator())
+        .background(WindowReader(ref: windowRef))
+    }
+}
+
+/// Holds the window that hosts the Settings view.
+final class WindowRef { weak var window: NSWindow? }
+
+private struct WindowReader: NSViewRepresentable {
+    let ref: WindowRef
+    func makeNSView(context: Context) -> NSView { Reader(ref: ref) }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+    private final class Reader: NSView {
+        let ref: WindowRef
+        init(ref: WindowRef) { self.ref = ref; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError() }
+        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); ref.window = window }
     }
 }
