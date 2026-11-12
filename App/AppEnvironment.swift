@@ -2,6 +2,7 @@ import Foundation
 import PhoneCore
 import FritzTR064
 import SIPEngine
+import VPN
 
 final class UserDefaultsPinStore: PinStore, @unchecked Sendable {
     func load() -> String? { UserDefaults.standard.string(forKey: "tr064CertFingerprint") }
@@ -50,7 +51,7 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
             guard !s.tr064User.isEmpty, let pw = secrets.get(SecretKey.tr064Password) else { return nil }
             return (s.fritzHost, s.tr064User, pw)
         }
-        core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: UnavailableVPN(),
+        core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.fritzphone.PacketTunnel"),
                        reachability: TCPReachability(host: { store.load().fritzHost }),
                        power: NoopPower(), cache: JSONFileContactCache.standard(), settings: store.load(),
                        sipConfig: {

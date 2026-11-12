@@ -6,8 +6,15 @@ settings:
   base:
     DEVELOPMENT_TEAM: LKF7C4WS72
     SWIFT_VERSION: "5.9"
+  configs:
+    # Universal for every target (app, PacketTunnel and the Go bridge), so the Intel iMac is covered.
+    Release:
+      ARCHS: "arm64 x86_64"
+      ONLY_ACTIVE_ARCH: NO
 packages:
   PhoneKit: { path: Packages/PhoneKit }
+  # Vendored copy of wireguard-apple's WireGuardKit (upstream manifest no longer resolves; see its Package.swift).
+  WireGuardKit: { path: Packages/WireGuardKit }
 targets:
   FritzPhone:
     type: application
@@ -16,10 +23,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.fritzphone
-      configs:
-        Release:
-          ARCHS: "arm64 x86_64"
-          ONLY_ACTIVE_ARCH: NO
     dependencies:
       - package: PhoneKit
         product: PhoneCore
@@ -27,6 +30,9 @@ targets:
         product: FritzTR064
       - package: PhoneKit
         product: SIPEngine
+      - package: PhoneKit
+        product: VPN
+      - target: PacketTunnel   # embedded in Contents/Library/SystemExtensions
     info:
       path: App/Info.plist
       properties:
@@ -39,3 +45,60 @@ targets:
         com.apple.security.network.client: true
         com.apple.security.network.server: true
         com.apple.security.device.audio-input: true
+        com.apple.developer.system-extension.install: true
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
+        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone"]
+
+  PacketTunnel:
+    type: system-extension
+    platform: macOS
+    sources: [PacketTunnel]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.fritzphone.PacketTunnel
+        PRODUCT_NAME: com.aarneaarebye.fritzphone.PacketTunnel   # sysext bundle name must be <bundle id>.systemextension
+        PRODUCT_MODULE_NAME: PacketTunnel
+        SKIP_INSTALL: YES
+    dependencies:
+      - target: WireGuardGoBridgemacOS   # builds libwg-go.a (Go) before WireGuardKit links
+      - package: WireGuardKit
+        product: WireGuardKit
+      - package: PhoneKit
+        product: VPN                     # TunnelConfigHandoff
+    info:
+      path: PacketTunnel/Info.plist
+      properties:
+        CFBundleDisplayName: FritzPhone VPN
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        NSSystemExtensionUsageDescription: "Connects FritzPhone to your FRITZ!Box over WireGuard when you are away from home."
+        NetworkExtension:
+          NEMachServiceName: "$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone.PacketTunnel"
+          NEProviderClasses:
+            com.apple.networkextension.packet-tunnel: "$(PRODUCT_MODULE_NAME).PacketTunnelProvider"
+    entitlements:
+      path: PacketTunnel/PacketTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.network.server: true
+        com.apple.security.application-groups: ["$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone"]
+
+  # External build target as in the WireGuardKit README: runs WireGuardKitGo's Makefile, which builds
+  # wireguard-go with the local Go toolchain for every arch in $(ARCHS) and lipo's libwg-go.a into
+  # $(CONFIGURATION_BUILD_DIR) (where WireGuardKitGo's `linkedLibrary("wg-go")` finds it).
+  WireGuardGoBridgemacOS:
+    type: ""
+    platform: macOS
+    legacy:
+      toolPath: /usr/bin/make
+      arguments: $(ACTION)
+      passSettings: true
+      workingDirectory: "$(SRCROOT)/Packages/WireGuardKit/Sources/WireGuardKitGo"
+    settings:
+      base:
+        SDKROOT: macosx
+        # The Makefile builds its cgo flags from these; current Xcode no longer exports them to external
+        # build tools, without them the Go objects target the SDK version (27.x) instead of macOS 14.
+        DEPLOYMENT_TARGET_CLANG_FLAG_NAME: mmacosx-version-min
+        DEPLOYMENT_TARGET_CLANG_ENV_NAME: MACOSX_DEPLOYMENT_TARGET

@@ -9,6 +9,7 @@ let package = Package(
         .library(name: "FritzTR064", targets: ["FritzTR064"]),
         .library(name: "PJBridge", targets: ["PJBridge"]),
         .library(name: "SIPEngine", targets: ["SIPEngine"]),
+        .library(name: "VPN", targets: ["VPN"]),
     ],
     targets: [
         .target(name: "PhoneCore"),
@@ -24,10 +25,13 @@ let package = Package(
                                  .linkedFramework("SystemConfiguration"), .linkedFramework("Network")]),
         .target(name: "SIPEngine", dependencies: ["PhoneCore", "PJBridge"]),
         .target(name: "FritzTR064", dependencies: ["PhoneCore"]),
+        .target(name: "VPN", dependencies: ["PhoneCore"],
+                linkerSettings: [.linkedFramework("NetworkExtension"), .linkedFramework("SystemExtensions")]),
         .executableTarget(name: "fritzdump", dependencies: ["FritzTR064", "PhoneCore"]),
         .executableTarget(name: "siptool", dependencies: ["SIPEngine", "PhoneCore"]),
         .testTarget(name: "SIPEngineTests", dependencies: ["SIPEngine"]),
         .testTarget(name: "PhoneCoreTests", dependencies: ["PhoneCore", "PJBridge"]),
+        .testTarget(name: "VPNTests", dependencies: ["VPN", "PhoneCore"]),
         .testTarget(name: "FritzTR064Tests", dependencies: ["FritzTR064", "PhoneCore"],
                     resources: [.copy("Fixtures")]),
     ]
