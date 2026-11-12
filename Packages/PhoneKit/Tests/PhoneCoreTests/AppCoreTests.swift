@@ -372,6 +372,113 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         XCTAssertEqual(r.core.activeCall?.displayName, "Erika")
         XCTAssertNil(r.core.lastError)
     }
+    // MARK: Final review fixes
+
+    func testWakeDuringConnectedCallKeepsCallAndDefersReRegister() async {   // C1
+        let r = makeRig(reach: [true])
+        await r.core.start()
+        r.core.handle(.incomingCall(id: 3, remote: "+49301234", called: nil))
+        r.core.handle(.callState(id: 3, .connected))
+        await r.core.handleWake()             // network-path change and wake both arrive here
+        await r.core.handleWake()
+        XCTAssertEqual(r.sip.registerCalls, 1)
+        XCTAssertEqual(r.reach.probes, 1)
+        XCTAssertEqual(r.core.activeCall?.id, 3)
+        XCTAssertEqual(r.core.activeCall?.state, .connected)
+        XCTAssertTrue(r.sip.hangups.isEmpty)
+        XCTAssertEqual(r.core.connection, .ready)
+        r.core.handle(.callState(id: 3, .ended(code: 200, reason: "OK")))
+        await waitUntil { r.sip.registerCalls == 2 }
+        XCTAssertEqual(r.sip.registerCalls, 2)   // exactly one deferred re-register
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(r.sip.registerCalls, 2)
+        XCTAssertEqual(r.core.connection, .ready)
+    }
+    func testSettingsSaveDuringCallIsDeferredUntilCallEnds() async {          // C1
+        let r = makeRig(reach: [true])
+        await r.core.start()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        await r.core.retry()                  // AppEnvironment.applySettings -> core.retry()
+        XCTAssertEqual(r.sip.registerCalls, 1)
+        XCTAssertEqual(r.core.activeCall?.state, .connected)
+        r.core.handle(.callState(id: 7, .ended(code: 200, reason: "OK")))
+        await waitUntil { r.sip.registerCalls == 2 }
+        XCTAssertEqual(r.sip.registerCalls, 2)
+    }
+    func testCallEndWithoutDeferredRequestDoesNotReRegister() async {         // C1
+        let r = makeRig(reach: [true])
+        await r.core.start()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .ended(code: 200, reason: "OK")))
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(r.sip.registerCalls, 1)
+    }
+    func testReconnectRestartsAppStartedTunnel() async {                      // I6
+        let r = makeRig(reach: [false, true, false, true])   // away: VPN up; later unreachable again, then ok
+        await r.core.start()
+        XCTAssertEqual(r.vpn.connectCalls, 1)
+        r.core.handle(.registration(.failed(code: 408, reason: "timeout")))
+        await r.core.waitForReconnect()
+        XCTAssertEqual(r.vpn.disconnectCalls, 1)   // restarted, not "connect" on a tunnel that reports connected
+        XCTAssertEqual(r.vpn.connectCalls, 2)
+        XCTAssertEqual(r.core.connection, .ready)
+    }
+    func testReconnectSurfacesVPNErrorAndKeepsBackingOff() async {            // I6
+        let r = makeRig(reach: [false, true, false, false, true])
+        await r.core.start()
+        r.vpn.error = FritzTestError.down
+        r.core.handle(.registration(.failed(code: 408, reason: "timeout")))
+        await waitUntil { r.core.lastError != nil }
+        XCTAssertEqual(r.core.lastError?.hasPrefix("VPN: "), true)
+        await r.core.waitForReconnect()
+        XCTAssertEqual(r.delays.values, [2, 4, 8])
+        XCTAssertEqual(r.core.connection, .ready)
+        XCTAssertNil(r.core.lastError)             // cleared once the connection recovered
+    }
+    func testVPNCancellationIsNotReportedAsError() async {                   // I6
+        let r = makeRig(reach: [false, true, false, true])
+        await r.core.start()
+        r.vpn.error = CancellationError()
+        r.core.handle(.registration(.failed(code: 408, reason: "timeout")))
+        await r.core.waitForReconnect()
+        XCTAssertNil(r.core.lastError)
+        XCTAssertEqual(r.core.connection, .ready)
+        let s = makeRig(reach: [false]); s.vpn.error = CancellationError()
+        await s.core.start()
+        XCTAssertNil(s.core.lastError)
+        if case .offline(let m) = s.core.connection { XCTAssertFalse(m.hasPrefix("VPN"), m) }
+    }
+    func testHangingPhoneBookDoesNotBlockWake() async {                       // I7
+        let r = makeRig(reach: [true])
+        r.book.gate = Gate()
+        let t = Task { await r.core.start() }
+        await waitUntil { r.core.connection == .ready }
+        await r.core.handleWake()             // must not join a connect attempt held by the phone book
+        XCTAssertEqual(r.sip.registerCalls, 2)
+        await r.book.gate?.release()
+        await t.value
+        XCTAssertEqual(r.core.contacts.map(\.name), ["Erika"])
+    }
+    func testShutdownThenStartKeepsNewConnectTask() async {                   // I7
+        let r = makeRig(reach: [true])
+        let g1 = Gate(); r.sip.registerGate = g1
+        let a = Task { await r.core.start() }
+        await waitUntil { r.sip.registerCalls == 1 }
+        await r.core.shutdown()
+        let g2 = Gate(); r.sip.registerGate = g2
+        let b = Task { await r.core.start() }
+        await waitUntil { r.sip.registerCalls == 2 }
+        await g1.release()
+        await a.value                         // the old attempt finishes after the new one started
+        let c = Task { await r.core.retry() } // must join the new attempt, not start a third
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(r.sip.registerCalls, 2)
+        await g2.release()
+        await b.value; await c.value
+        XCTAssertEqual(r.sip.registerCalls, 2)
+        XCTAssertEqual(r.core.connection, .ready)
+    }
     func testSIPConfigDescriptionRedactsPassword() {
         let c = SIPConfig(host: "h", user: "u", password: "s3cret")
         XCTAssertFalse("\(c)".contains("s3cret"))

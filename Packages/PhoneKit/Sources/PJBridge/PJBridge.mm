@@ -50,7 +50,7 @@ private:
     std::unique_ptr<BridgeAccount> _acc;
     std::map<int, std::unique_ptr<BridgeCall>> _calls;
     NSTimer *_timer;
-    std::string _host;
+    std::string _host, _user, _password;
     BOOL _muted;
 }
 
@@ -105,16 +105,24 @@ static NSError *PJError(const std::string &msg) {
 
 - (BOOL)registerAccountWithHost:(NSString *)host user:(NSString *)user password:(NSString *)password error:(NSError **)error {
     if (!_ep) { if (error) *error = PJError("Engine not started"); return NO; }
+    const char *h = host.UTF8String, *u = user.UTF8String, *p = password.UTF8String;
+    if (!h || !u || !p) { if (error) *error = PJError("Invalid account data"); return NO; }
+    // Same account: refresh the registration in place. Live calls reference the account and must survive
+    // network changes, wake and Settings saves, so only a real account change ends them.
+    if (_acc && _host == h && _user == u && _password == p) {
+        try { _acc->setRegistration(true); return YES; }
+        catch (Error &) { /* fall back to recreating the account */ }
+    }
     try {
         [self endAllCallsWithReason:@"Account replaced"];   // calls reference the account: end them first
         _acc.reset();
-        _host = host.UTF8String;
+        _host = h; _user = u; _password = p;
         AccountConfig ac;
-        ac.idUri = "sip:" + std::string(user.UTF8String) + "@" + _host;
+        ac.idUri = "sip:" + _user + "@" + _host;
         ac.regConfig.registrarUri = "sip:" + _host;
         ac.regConfig.timeoutSec = 300;
         ac.regConfig.retryIntervalSec = 0;       // AppCore owns reconnect/backoff; no pjsua-internal retry
-        ac.sipConfig.authCreds.push_back(AuthCredInfo("digest", "*", user.UTF8String, 0, password.UTF8String));
+        ac.sipConfig.authCreds.push_back(AuthCredInfo("digest", "*", _user, 0, _password));
         _acc.reset(new BridgeAccount(self));
         _acc->create(ac);
         return YES;
@@ -125,20 +133,34 @@ static NSError *PJError(const std::string &msg) {
     }
 }
 
+/// Defensive: only digits, '*', '#' and one leading '+' may reach the SIP URI.
+static bool IsDialable(const char *s) {
+    if (!s || !*s) return false;
+    if (*s == '+') s++;
+    if (!*s) return false;
+    for (; *s; s++) {
+        char c = *s;
+        if (!((c >= '0' && c <= '9') || c == '*' || c == '#')) return false;
+    }
+    return true;
+}
+
 - (void)unregisterAccount {
     // Destroying the account unregisters it; callbacks from a dying account are ignored (_acc is null).
     [self endAllCallsWithReason:@"Account removed"];
     try { _acc.reset(); } catch (...) {}
+    _password.clear();
 }
 
 - (nullable NSNumber *)dial:(NSString *)number error:(NSError **)error {
+    if (!IsDialable(number.UTF8String)) { if (error) *error = PJError("Invalid number"); return nil; }
     if (!_acc) { if (error) *error = PJError("Not registered"); return nil; }
-    NSString *clean = [[number stringByReplacingOccurrencesOfString:@" " withString:@""]
-                       stringByReplacingOccurrencesOfString:@"#" withString:@"%23"];
+    const char *clean = [number stringByReplacingOccurrencesOfString:@"#" withString:@"%23"].UTF8String;
+    if (!clean) { if (error) *error = PJError("Invalid number"); return nil; }
     try {
         std::unique_ptr<BridgeCall> call(new BridgeCall(*_acc, PJSUA_INVALID_ID, self));
         CallOpParam prm(true);
-        call->makeCall("sip:" + std::string(clean.UTF8String) + "@" + _host, prm);
+        call->makeCall("sip:" + std::string(clean) + "@" + _host, prm);
         int id = call->getId();
         _calls[id] = std::move(call);
         // pjsua2 cannot route callbacks fired inside makeCall (the Call is not yet bound to its pjsua call),
@@ -232,7 +254,9 @@ static NSString *CalledPartyHeader(const std::string &msg) {
 
 - (void)sendDTMF:(NSString *)digits callId:(NSInteger)callId {
     auto it = _calls.find((int)callId); if (it == _calls.end()) return;
-    try { it->second->dialDtmf(std::string(digits.UTF8String)); } catch (...) {}
+    const char *d = digits.UTF8String;
+    if (!d) return;
+    try { it->second->dialDtmf(std::string(d)); } catch (...) {}
 }
 
 /// Hangs up every live call and tells the delegate each one ended, so no call is dropped silently.

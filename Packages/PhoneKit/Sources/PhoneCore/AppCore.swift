@@ -39,6 +39,10 @@ public final class AppCore {
     @ObservationIgnored private var reconnectTask: Task<Void, Never>?
     @ObservationIgnored private var cleanupTask: Task<Void, Never>?
     @ObservationIgnored private var connectTask: Task<Void, Never>?
+    @ObservationIgnored private var connectGen = 0
+    @ObservationIgnored private var bookTask: Task<Void, Never>?
+    @ObservationIgnored private var reRegisterAfterCall = false
+    @ObservationIgnored private var vpnError: String?
     @ObservationIgnored private var reconnectGen = 0
     @ObservationIgnored private var callSerial = 0
 
@@ -54,15 +58,31 @@ public final class AppCore {
 
     // MARK: Lifecycle
 
-    public func start() async { startEventLoop(); await connect(wake: false) }
+    /// Returns once the first connect attempt and the first phone-book load are done.
+    public func start() async { startEventLoop(); await connect(wake: false); await bookTask?.value }
     public func retry() async { await connect(wake: false) }
-    public func handleWake() async { cancelReconnect(); await connect(wake: true) }
+    public func handleWake() async {
+        if deferWhileInCall() { return }
+        cancelReconnect(); await connect(wake: true)
+    }
+
+    private var callIsLive: Bool { activeCall.map { !isEnded($0) } ?? false }
+
+    /// A live call must not be disturbed by a re-registration (wake, network change, Settings save):
+    /// remember the request and re-register once the call has ended.
+    private func deferWhileInCall() -> Bool {
+        guard callIsLive else { return false }
+        reRegisterAfterCall = true
+        return true
+    }
 
     public func shutdown() async {
         power.setPreventSleep(false)
         eventTask?.cancel(); eventTask = nil
         connectTask?.cancel(); connectTask = nil
         cleanupTask?.cancel(); cleanupTask = nil
+        bookTask?.cancel()   // clears itself when it finishes
+        reRegisterAfterCall = false
         cancelReconnect()
         if let c = activeCall { sip.hangup(c.id) }
         sip.unregister()
@@ -71,11 +91,14 @@ public final class AppCore {
 
     /// Serialized: concurrent callers join the in-flight attempt instead of starting another.
     private func connect(wake: Bool) async {
+        if deferWhileInCall() { return }
         if let t = connectTask { await t.value; return }
+        connectGen += 1
+        let gen = connectGen
         let t = Task { [weak self] in
             guard let self else { return }
             await self.runConnect(wake: wake)
-            self.connectTask = nil
+            if self.connectGen == gen { self.connectTask = nil }   // never clear a newer attempt (shutdown + start)
         }
         connectTask = t
         await t.value
@@ -93,6 +116,7 @@ public final class AppCore {
             if !quiet { connection = .connectingVPN }
             startedVPN = true   // a partially started tunnel must still be torn down
             do { try await vpn.connect() }
+            catch is CancellationError { return }   // stopped on purpose
             catch { if !Task.isCancelled { fail("VPN: \(error.localizedDescription)") }; return }
             guard !Task.isCancelled else { return }
             guard await reachability.isFritzBoxReachable() else {
@@ -102,12 +126,13 @@ public final class AppCore {
         }
         guard !Task.isCancelled else { return }
         guard let cfg = sipConfig() else {
-            await refreshPhoneBook()
+            startPhoneBookRefresh()
             connection = .offline("Not configured – open Settings"); return
         }
         if !quiet { connection = .registering }
-        // The phone book loads concurrently; it must not delay (or be delayed by) registration.
-        async let book: Void = refreshPhoneBook()
+        // The phone book loads in its own task: a slow or hung TR-064 request must neither delay registration
+        // nor keep this (serialized) attempt alive for later wake/retry callers to join.
+        startPhoneBookRefresh()
         enum Outcome { case ok, auth, transient }
         let outcome: Outcome
         do { try await sip.register(cfg); outcome = .ok }
@@ -120,7 +145,6 @@ public final class AppCore {
             case .transient: startReconnect()
             }
         }
-        await book
     }
 
     private func startEventLoop() {
@@ -131,6 +155,15 @@ public final class AppCore {
     }
 
     // MARK: Phone book
+
+    private func startPhoneBookRefresh() {
+        guard bookTask == nil else { return }   // one refresh at a time
+        bookTask = Task { [weak self] in
+            await self?.refreshPhoneBook()
+            self?.bookTask = nil
+        }
+    }
+    public func waitForPhoneBook() async { await bookTask?.value }
 
     public func refreshPhoneBook() async {
         do {
@@ -164,6 +197,10 @@ public final class AppCore {
             if case .ended(let code, let reason) = state {
                 if code != 200 && code != 487 { lastError = "Call ended: \(code) \(reason)" }
                 scheduleCallCleanup(activeCall?.serial ?? 0)
+                if reRegisterAfterCall {
+                    reRegisterAfterCall = false
+                    Task { [weak self] in await self?.handleWake() }
+                }
             }
         case .registration(.registered):
             guard connection != .authFailed else { return }
@@ -220,6 +257,8 @@ public final class AppCore {
                         do {
                             try await self.sip.register(cfg)
                             guard self.isCurrentReconnect(gen) else { return }
+                            if let v = self.vpnError, self.lastError == v { self.lastError = nil }
+                            self.vpnError = nil
                             self.connection = .ready; self.reconnectTask = nil; return
                         } catch SIPError.authFailed {
                             guard self.isCurrentReconnect(gen) else { return }
@@ -227,9 +266,19 @@ public final class AppCore {
                         } catch { /* keep retrying */ }
                     }
                 } else {
-                    // The tunnel may have dropped mid-session: bring it back, then re-probe on the next round.
+                    // The tunnel may have dropped or gone stale (e.g. the FRITZ!Box WAN IP changed while it
+                    // reported "connected"): restart our own tunnel, which resolves the endpoint again, or
+                    // start one. Then re-probe on the next round.
+                    if self.startedVPN { await self.vpn.disconnect() }
+                    guard self.isCurrentReconnect(gen) else { return }
                     self.startedVPN = true
-                    try? await self.vpn.connect()
+                    do { try await self.vpn.connect() }
+                    catch is CancellationError { /* stopped on purpose */ }
+                    catch {
+                        guard self.isCurrentReconnect(gen) else { return }
+                        let msg = "VPN: \(error.localizedDescription)"
+                        self.vpnError = msg; self.lastError = msg
+                    }
                 }
                 delay = min(delay * 2, 60)
             }
