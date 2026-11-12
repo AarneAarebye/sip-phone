@@ -2486,6 +2486,14 @@ git add -A && git commit -m "feat: call UI, incoming-call notifications, mute an
 
 ### Task 10: WireGuard VPN (`VPNManager` and `PacketTunnel` extension)
 
+> **AMENDMENT (user decision 2026-11-12, supersedes conflicting original steps below): full-tunnel WireGuard as a macOS *system extension*.** The app is distributed outside the Mac App Store with Developer ID, where a Network Extension packet tunnel must be a **system extension**, not an app extension. (An in-process userspace tunnel like the user's `dossiary-sync` WGTunnel only forwards TCP and cannot carry SIP/RTP over UDP, so it is not used for calls.) Concretely:
+> - `PacketTunnel` is an XcodeGen target of `type: system-extension`, embedded in the app (Contents/Library/SystemExtensions), bundle id `com.aarneaarebye.fritzphone.PacketTunnel`. Its Info.plist has `NetworkExtension` → `NEMachServiceName` = `$(TeamIdentifierPrefix)com.aarneaarebye.fritzphone.PacketTunnel` and `NEProviderClasses` = `{com.apple.networkextension.packet-tunnel: $(PRODUCT_MODULE_NAME).PacketTunnelProvider}` (NOT `NSExtension`).
+> - Entitlements: both app and extension use `com.apple.developer.networking.networkextension` = `[packet-tunnel-provider-systemextension]`; the app additionally has `com.apple.developer.system-extension.install` = true; extension has app-sandbox + network.client + network.server.
+> - `VPNManager.connect()` first activates the system extension with `OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier:queue:)` and a delegate (handle `.completed`, `.willCompleteAfterReboot`, `requestNeedsUserApproval` → surface a clear "approve the network extension in System Settings > General > Login Items & Extensions > Network Extensions" state via a new `VPNError.needsApproval`; replacing-version delegate returns `.replace`), then configures/starts the `NETunnelProviderManager` as in the original steps.
+> - Secret handling: the system extension runs outside the user's session, so the shared-keychain-persistent-reference approach below may not resolve in the extension. The implementer must determine the working documented pattern (shared data-protection keychain access group vs. `providerConfiguration`), prefer keeping the private key out of plain preferences, state the chosen approach and the evidence/limits honestly in the report (it cannot be exercised at runtime in the SDD session), and make the config handoff one small replaceable function.
+> - Cannot be run in the SDD session: activation needs Apple-issued provisioning profiles with the Network Extension + System Extension capabilities for both bundle ids (Xcode automatic signing for development; manual Developer ID profiles for release — user steps, listed in the README in Task 12) and, for local development, `systemextensionsctl developer on` (with SIP considerations). The build must still succeed (`CODE_SIGNING_ALLOWED=NO` is acceptable for verification if profiles are missing — report it).
+> - WireGuardKit's Go bridge must build for both architectures (universal); the app/extension Release builds use `ARCHS = arm64 x86_64`.
+
 **Files:**
 - Create: `Packages/PhoneKit/Sources/VPN/VPNManager.swift`, `PacketTunnel/PacketTunnelProvider.swift`
 - Modify: `Packages/PhoneKit/Package.swift`, `project.yml`, `App/AppEnvironment.swift`, `App/Stubs.swift`
@@ -2841,6 +2849,24 @@ Then run this manual checklist with the user and report each line as pass/fail (
 ```bash
 git add -A && git commit -m "feat: launch at login and README" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
+
+---
+
+### Task 13: Release build, Developer ID signing and notarization (user decision: distribute outside the user's own Mac, including an Intel iMac on macOS Tahoe 26)
+
+**Files:**
+- Create: `scripts/release.sh`, `docs/RELEASE.md`
+- Modify: `project.yml` (Release configuration: hardened runtime, Developer ID signing), `README.md`
+
+**Interfaces:**
+- Consumes: the app + `PacketTunnel` system extension targets (Task 10), universal PJSIP (Task 7).
+- Produces: `scripts/release.sh` producing a notarized, stapled, universal `FritzPhone.dmg` under `build/release/`.
+
+- [ ] **Step 1: Release settings** — in `project.yml` Release: `ENABLE_HARDENED_RUNTIME: YES`, `ARCHS: "arm64 x86_64"`, `ONLY_ACTIVE_ARCH: NO`, `CODE_SIGN_STYLE: Manual`, `CODE_SIGN_IDENTITY: "Developer ID Application"`, per-target `PROVISIONING_PROFILE_SPECIFIER` for the app and the system extension (Developer ID profiles with Network Extension and System Extension capabilities; names documented in `docs/RELEASE.md`). Hardened-runtime exceptions only where required (audio-input entitlement is already present).
+- [ ] **Step 2: `scripts/release.sh`** — `set -euo pipefail`; steps: `scripts/build-pjsip.sh` if the xcframework is missing; `xcodegen`; `xcodebuild archive` (universal); `xcodebuild -exportArchive` with an `ExportOptions.plist` (method `developer-id`, teamID `LKF7C4WS72`); `codesign --verify --deep --strict`; `ditto -c -k --keepParent` zip; `xcrun notarytool submit --keychain-profile "fritzphone-notary" --wait`; `xcrun stapler staple`; build the DMG with `hdiutil create`; verify with `spctl -a -t exec -vv` and `lipo -archs` on the app and extension executables (must list `x86_64 arm64`). The script never contains credentials; it uses the notarytool keychain profile created once by the user with `xcrun notarytool store-credentials "fritzphone-notary"`.
+- [ ] **Step 3: `docs/RELEASE.md`** — user prerequisites: Developer ID Application certificate in the login keychain; the two App IDs (`com.aarneaarebye.fritzphone`, `com.aarneaarebye.fritzphone.PacketTunnel`) with the Network Extensions (and System Extension) capability; two Developer ID provisioning profiles; the notarytool profile; how to approve the extension on first run; how to test on the Intel iMac (macOS Tahoe 26; note that macOS 26 is the last release supporting Intel Macs).
+- [ ] **Step 4: Verify** — `bash -n scripts/release.sh` (syntax) and, if the user's certificate/profiles/notary profile exist, a real run; otherwise report what could not be verified. Do not commit credentials, profiles or build outputs.
+- [ ] **Step 5: Commit** — `git add scripts/release.sh docs/RELEASE.md project.yml README.md && git commit -m "build: Developer ID release script with notarization" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"`
 
 ---
 
