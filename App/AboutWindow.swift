@@ -23,13 +23,8 @@ enum AppInfo {
         ("PJSIP 2.15", "GPL-2.0-or-later"),
         ("WireGuardKit and wireguard-go", "MIT"),
         ("Go runtime and modules (golang.org/x/crypto, net, sys)", "BSD-3-Clause"),
-        ("libsrtp (bundled with PJSIP)", "BSD-3-Clause"),
-        ("Speex (bundled with PJSIP)", "BSD-3-Clause"),
-        ("WebRTC audio processing (bundled with PJSIP)", "BSD-3-Clause"),
-        ("libresample (bundled with PJSIP)", "LGPL-2.1"),
-        ("GSM 06.10 (bundled with PJSIP)", "TU Berlin notice"),
-        ("iLBC (bundled with PJSIP)", "RFC 3951 code"),
-        ("G.722.1 (bundled with PJSIP)", "Polycom notice"),
+        ("libresample (bundled with PJSIP)", "LGPL-2.1-or-later"),
+        ("Speex DSP (bundled with PJSIP)", "BSD-3-Clause"),
     ]
 }
 

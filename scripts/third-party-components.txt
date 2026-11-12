@@ -2,17 +2,12 @@
 # One name per line; scripts/check-licenses.sh fails if THIRD_PARTY_LICENSES.md does not mention each one.
 # Lines starting with # and empty lines are ignored. Determined from libpjsip-all.a members and `go list -deps`.
 PJSIP
-G.722.1
 Go runtime and standard library
 golang.org/x/crypto
 golang.org/x/net
 golang.org/x/sys
-GSM 06.10
-iLBC
 libresample
-libsrtp
-Speex
-WebRTC
+Speex DSP
 wireguard-apple
 wireguard-go
 WireGuardKit

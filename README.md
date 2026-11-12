@@ -100,7 +100,7 @@ Source code: https://github.com/AarneAarebye/sip-phone, including the scripts th
 
 The app and its VPN extension contain the following open source components. The full licence texts are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which is also bundled in the app and shown by "Third-party licences…" in the About window.
 
-- PJSIP (pjproject) 2.15, Teluu Inc.: GPL-2.0-or-later. Bundled with it and compiled in: libsrtp 2.5.0 (BSD-3-Clause), Speex (BSD-3-Clause), WebRTC audio processing (BSD-3-Clause), libresample (LGPL-2.1), GSM 06.10 (TU Berlin notice), iLBC (RFC 3951 code) and G.722.1 (Polycom).
+- PJSIP (pjproject) 2.15, Teluu Inc.: GPL-2.0-or-later. Bundled with it and compiled in: libresample 1.7 (LGPL-2.1-or-later) and Speex DSP, the Speex echo canceller and preprocessor (BSD-3-Clause). The build (`scripts/build-pjsip.sh`) keeps only the G.722 and G.711 codecs the app uses and leaves out SRTP, WebRTC audio processing and the other codecs (G.722.1, iLBC, GSM, Speex codec, L16, Opus, SILK).
 - WireGuardKit (vendored from wireguard-apple) and the wg-quick parser in `PacketTunnel/WgQuickConfig.swift`, WireGuard LLC: MIT.
 - wireguard-go (golang.zx2c4.com/wireguard), WireGuard LLC: MIT.
 - Go runtime and standard library, golang.org/x/crypto, golang.org/x/net and golang.org/x/sys, The Go Authors: BSD-3-Clause.
