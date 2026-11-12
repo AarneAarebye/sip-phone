@@ -60,7 +60,10 @@ public final class AppCore {
         public var connectedAt: Date?
     }
 
-    public private(set) var connection: Connection = .starting
+    public private(set) var connection: Connection = .starting {
+        // A "Not connected" dial refusal is stale once we are connected again.
+        didSet { if connection == .ready, lastError == "Not connected" { lastError = nil } }
+    }
     public private(set) var contacts: [Contact] = []
     /// All known phone books (including switched-off ones).
     public var phoneBooks: [PhoneBookSummary] { PhoneBooks.summaries(from: contacts) }
