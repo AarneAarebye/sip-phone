@@ -26,9 +26,20 @@ actor Gate {
     func emit(_ e: SIPEvent) { cont.yield(e) }
     func register(_ config: SIPConfig) async throws { registerCalls += 1; if let g = registerGate { await g.wait() }; if let e = registerError { throw e } }
     func unregister() { unregisterCalls += 1 }
-    func dial(_ number: String) throws -> Int { dialed.append(number); return 7 }
+    /// Emitted synchronously from inside `dial` (PJBridge reports an immediately failed call that way).
+    var stateOnDial: CallState?
+    func dial(_ number: String) throws -> Int {
+        dialed.append(number)
+        if let s = stateOnDial { emit(.callState(id: 7, s)) }
+        return 7
+    }
     func answer(_ id: Int) { answered.append(id) }
     func hangup(_ id: Int) { hangups.append(id) }
+    /// Ids the engine has lost (no longer known); every other id counts as active.
+    var lostCalls: Set<Int> = []
+    var forceEnded: [Int] = []
+    func isCallActive(_ callId: Int) -> Bool { !lostCalls.contains(callId) }
+    func forceEnd(_ callId: Int) { forceEnded.append(callId); lostCalls.insert(callId) }
     func setMuted(_ muted: Bool) { muteCalls.append(muted) }
     var networkChanges = 0
     func networkChanged() { networkChanges += 1 }
@@ -340,7 +351,8 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         await r.core.start()
         r.core.dial("030 1234"); r.core.clearError()
         r.core.dial("2")
-        XCTAssertEqual(r.core.lastError, "Already in a call")
+        XCTAssertEqual(r.core.lastError, AppCore.alreadyInCall)
+        XCTAssertTrue(AppCore.alreadyInCall.contains("end the current call first"))
     }
     private func ready() async -> Rig { let r = makeRig(reach: [true]); await r.core.start(); return r }
     func testLocalHangupOfConnectedCallSaysCallEnded() async {
@@ -565,5 +577,223 @@ final class DelayLog: @unchecked Sendable { var values: [TimeInterval] = [] }
         let c = SIPConfig(host: "h", user: "u", password: "s3cret")
         XCTAssertFalse("\(c)".contains("s3cret"))
         XCTAssertFalse(String(reflecting: c).contains("s3cret"))
+    }
+}
+
+/// Test clock for the call watchdogs: every `callSleep` suspends until `tick()` (or cancellation).
+final class CallClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    private var log: [TimeInterval] = []
+    var requested: [TimeInterval] { lock.withLock { log } }
+    var pending: Int { lock.withLock { waiters.count } }
+
+    func sleep(_ t: TimeInterval) async {
+        lock.withLock { log.append(t) }
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                lock.withLock { waiters[id] = c }
+                if Task.isCancelled { resume(id) }
+            }
+        } onCancel: { resume(id) }
+    }
+    private func resume(_ id: UUID) { lock.withLock { waiters.removeValue(forKey: id) }?.resume() }
+    /// Resumes every sleeper waiting now, then lets them run.
+    @MainActor func tick() async {
+        let w = lock.withLock { let w = waiters; waiters = [:]; return w }
+        w.values.forEach { $0.resume() }
+        for _ in 0..<20 { await Task.yield() }
+    }
+}
+
+@MainActor final class CallRecoveryTests: XCTestCase {
+    /// The 2 s cleanup after an end runs only on `cleanup.tick()`, so the ended state can be checked first.
+    private let cleanup = CallClock()
+    private func clearAfterEnd(_ r: Rig) async {
+        await waitUntil { self.cleanup.pending == 1 }
+        await cleanup.tick()
+        await r.core.waitForCallCleanup()
+    }
+    private func rig() async -> (Rig, CallClock) {
+        let sip = FakeSIP(), vpn = FakeVPN(), power = FakePower(), r = FakeReach([true]), book = FakeBook(), cache = FakeCache(), log = DelayLog()
+        let ticker = CallClock(), cleanup = cleanup
+        let core = AppCore(sip: sip, phoneBook: book, vpn: vpn, reachability: r, power: power, cache: cache,
+                           settings: AppSettings(),
+                           sipConfig: { SIPConfig(host: "fritz.box", user: "u", password: "p") },
+                           sleep: { log.values.append($0); if $0 == 2 { await cleanup.sleep($0) } else { await Task.yield() } },
+                           callSleep: { t in await ticker.sleep(t) })
+        let rig = Rig(core: core, sip: sip, vpn: vpn, power: power, reach: r, book: book, cache: cache, delays: log)
+        await core.start()
+        return (rig, ticker)
+    }
+
+    func testLostEndEventIsReconciledOnTick() async {
+        let (r, ticker) = await rig()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        await waitUntil { ticker.pending == 1 }
+        XCTAssertEqual(ticker.requested.first, 3)
+        r.sip.lostCalls = [7]                  // the engine forgot the call; no end event arrives
+        await ticker.tick()
+        guard case .ended = r.core.activeCall?.state else { return XCTFail("expected ended, got \(String(describing: r.core.activeCall?.state))") }
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call ended")
+        XCTAssertNil(r.core.lastError)
+        await clearAfterEnd(r)
+        XCTAssertNil(r.core.activeCall)
+        XCTAssertEqual(ticker.pending, 0)       // the watch stopped with the call
+    }
+
+    func testReconcileNeverClearsAHealthyCall() async {
+        let (r, ticker) = await rig()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        for _ in 0..<5 { await waitUntil { ticker.pending == 1 }; await ticker.tick() }
+        XCTAssertEqual(r.core.activeCall?.state, .connected)
+        r.core.dial("030 5678")                 // refused: the call is really live
+        XCTAssertEqual(r.core.lastError, AppCore.alreadyInCall)
+        XCTAssertEqual(r.sip.dialed.count, 1)
+        await r.core.handleWake()               // network change: deferred, call kept
+        XCTAssertEqual(r.core.activeCall?.state, .connected)
+        XCTAssertTrue(r.sip.forceEnded.isEmpty)
+    }
+
+    func testDialAfterStuckCallWorks() async {
+        let (r, _) = await rig()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        r.sip.lostCalls = [7]
+        r.core.dial("030 5678")                 // reconciled first, then dialled
+        XCTAssertNil(r.core.lastError)
+        XCTAssertEqual(r.sip.dialed, ["0301234", "0305678"])
+        XCTAssertEqual(r.core.activeCall?.state, .calling)
+        XCTAssertEqual(r.core.activeCall?.remote, "0305678")
+    }
+
+    func testLocalHangupWithoutEndEventIsForcedByWatchdog() async {
+        let (r, ticker) = await rig()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        r.core.hangup()
+        XCTAssertEqual(r.sip.hangups, [7])
+        await waitUntil { ticker.pending == 2 }  // reconcile tick + hang-up watchdog
+        XCTAssertTrue(ticker.requested.contains(4))
+        await ticker.tick()
+        XCTAssertEqual(r.sip.forceEnded, [7])
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call ended")
+        await clearAfterEnd(r)
+        XCTAssertNil(r.core.activeCall)
+        // The engine's late end event for the forced call is ignored, and a new call works.
+        r.core.handle(.callState(id: 7, .ended(code: 408, reason: "Request Timeout")))
+        XCTAssertNil(r.core.lastError)
+        r.sip.lostCalls = []
+        r.core.dial("030 1234")
+        XCTAssertEqual(r.core.activeCall?.state, .calling)
+    }
+
+    func testHangupWithTimelyEndEventDoesNotForce() async {
+        let (r, ticker) = await rig()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        r.core.hangup()
+        r.core.handle(.callState(id: 7, .ended(code: 200, reason: "Normal call clearing")))
+        await ticker.tick()
+        XCTAssertTrue(r.sip.forceEnded.isEmpty)
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call ended")
+    }
+
+    func testEndEventEmittedInsideDialIsNotLost() async {
+        let (r, _) = await rig()
+        r.sip.stateOnDial = .ended(code: 503, reason: "Service Unavailable")   // before beginCall stored the call
+        r.core.dial("030 1234")
+        await waitUntil { r.core.activeCall?.endMessage != nil }
+        XCTAssertEqual(r.core.activeCall?.endMessage, "Call failed: 503 Service Unavailable")
+        await clearAfterEnd(r)
+        XCTAssertNil(r.core.activeCall)
+    }
+
+    func testEndedEventDuringDeferredNetworkChangeRunsItOnce() async {
+        let (r, _) = await rig()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        await r.core.handleWake()               // deferred: call live
+        XCTAssertEqual(r.sip.networkChanges, 0)
+        XCTAssertEqual(r.sip.registerCalls, 1)
+        r.sip.emit(.callState(id: 7, .ended(code: 200, reason: "Normal call clearing")))
+        await waitUntil { r.sip.registerCalls == 2 }
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(r.sip.networkChanges, 1)
+        XCTAssertEqual(r.sip.registerCalls, 2)
+        await clearAfterEnd(r)
+        XCTAssertNil(r.core.activeCall)
+    }
+
+    func testNetworkChangeReconcilesLostCallAndRunsOnce() async {
+        let (r, _) = await rig()
+        r.core.dial("030 1234")
+        r.core.handle(.callState(id: 7, .connected))
+        await r.core.handleWake()               // deferred while the call is live
+        r.sip.lostCalls = [7]
+        await r.core.handleWake()               // reconciles, then handles the change itself
+        for _ in 0..<20 { await Task.yield() }
+        guard case .ended = r.core.activeCall?.state else { return XCTFail("expected ended") }
+        XCTAssertEqual(r.sip.networkChanges, 1)
+        XCTAssertEqual(r.sip.registerCalls, 2)
+    }
+
+    func testConnectedAtIsSetOnce() async {
+        let (r, _) = await rig()
+        r.core.dial("030 1234")
+        XCTAssertNil(r.core.activeCall?.connectedAt)
+        r.core.handle(.callState(id: 7, .connected))
+        let t = r.core.activeCall?.connectedAt
+        XCTAssertNotNil(t)
+        r.core.handle(.callState(id: 7, .connected))   // re-INVITE
+        XCTAssertEqual(r.core.activeCall?.connectedAt, t)
+    }
+}
+
+final class MediaAddressTests: XCTestCase {
+    private let ifs = [InterfaceAddress(name: "en0", ipv4: "192.168.179.23"),
+                       InterfaceAddress(name: "utun3", ipv4: "10.8.0.2"),
+                       InterfaceAddress(name: "utun4", ipv4: "192.168.65.204")]
+
+    func testHomeNetworkPicksTheTunnelInIt() {
+        XCTAssertEqual(MediaAddress.tunnelAddress(from: ifs, homeNetwork: "192.168.65.0/24"), "192.168.65.204")
+        XCTAssertNil(MediaAddress.tunnelAddress(from: ifs, homeNetwork: "192.168.70.0/24"))
+    }
+    func testWithoutHomeNetworkFirstPrivateTunnelNotOnTheLocalLAN() {
+        XCTAssertEqual(MediaAddress.tunnelAddress(from: ifs, homeNetwork: nil), "10.8.0.2")
+        let mirrored = [InterfaceAddress(name: "en0", ipv4: "10.8.0.9"), InterfaceAddress(name: "utun4", ipv4: "10.8.0.2"),
+                        InterfaceAddress(name: "utun5", ipv4: "192.168.65.204")]
+        XCTAssertEqual(MediaAddress.tunnelAddress(from: mirrored, homeNetwork: ""), "192.168.65.204")
+    }
+    func testNoTunnelOrPublicTunnelGivesNil() {
+        XCTAssertNil(MediaAddress.tunnelAddress(from: [InterfaceAddress(name: "en0", ipv4: "192.168.179.23")], homeNetwork: nil))
+        XCTAssertNil(MediaAddress.tunnelAddress(from: [InterfaceAddress(name: "utun2", ipv4: "8.8.8.8")], homeNetwork: nil))
+        XCTAssertNil(MediaAddress.tunnelAddress(from: [], homeNetwork: "192.168.65.0/24"))
+    }
+    func testInvalidHomeNetworkFallsBackToHeuristic() {
+        XCTAssertEqual(MediaAddress.tunnelAddress(from: ifs, homeNetwork: "fd00::/64"), "10.8.0.2")
+    }
+    func testCurrentInterfacesAreIPv4WithoutLoopback() {
+        for i in MediaAddress.currentIPv4Interfaces() {
+            XCTAssertNotNil(MediaAddress.ipv4(of: i.ipv4), i.ipv4)
+            XCTAssertFalse(i.ipv4.hasPrefix("127."))
+        }
+    }
+    func testModeDecodingIsTolerant() throws {
+        func decode(_ json: String) throws -> AppSettings { try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8)) }
+        XCTAssertEqual(try decode("{}").mediaAddressMode, .automatic)
+        XCTAssertEqual(try decode(#"{"mediaAddressMode":"bogus","sipUser":"x"}"#).mediaAddressMode, .automatic)
+        XCTAssertEqual(try decode(#"{"mediaAddressMode":"bogus","sipUser":"x"}"#).sipUser, "x")
+        XCTAssertEqual(try decode(#"{"mediaAddressMode":"natRewrite"}"#).mediaAddressMode, .natRewrite)
+        var s = AppSettings(); s.mediaAddressMode = .tunnelInterface
+        XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(s)).mediaAddressMode, .tunnelInterface)
+    }
+    func testSIPConfigDescriptionShowsModeButNoPassword() {
+        let c = SIPConfig(host: "h", user: "u", password: "s3cret", mediaAddressMode: .tunnelInterface, mediaBindAddress: "192.168.65.204")
+        XCTAssertTrue(c.description.contains("tunnelInterface 192.168.65.204"))
+        XCTAssertFalse(c.description.contains("s3cret"))
     }
 }

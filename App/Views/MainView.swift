@@ -11,6 +11,7 @@ struct MainView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let call = core.activeCall { InCallRow(core: core, call: call) }
             statusBar
             if let e = core.lastError {
                 HStack(alignment: .top) {
@@ -64,5 +65,39 @@ struct MainView: View {
         }.padding([.horizontal, .top], 8)
         if let n = core.phoneBookNotice { Text(n).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 8) }
         if let n = core.vpnNotice { Text(n).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 8) }
+    }
+}
+
+/// Top row of the popover while a call exists: the call controls stay reachable even without the call panel.
+private struct InCallRow: View {
+    let core: AppCore
+    let call: AppCore.ActiveCall
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "phone.fill").foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("In call: \(call.displayName ?? call.remote)").font(.callout).lineLimit(1)
+                status.font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            Spacer()
+            Button("Show call window") { CallWindowController.current?.showPanel() }
+                .font(.caption)
+            if case .ended = call.state {} else {
+                Button("Hang up") { core.hangup() }.tint(.red).buttonStyle(.borderedProminent).font(.caption)
+            }
+        }
+        .padding(8)
+        .background(Color.green.opacity(0.12))
+    }
+
+    @ViewBuilder private var status: some View {
+        switch call.state {
+        case .calling: Text("Calling…")
+        case .ringing: Text(call.isIncoming ? "Incoming call" : "Ringing…")
+        case .connected:
+            if let t = call.connectedAt { Text(t, style: .timer) } else { Text("Connected") }
+        case .ended: Text(call.endMessage ?? "Call ended")
+        }
     }
 }

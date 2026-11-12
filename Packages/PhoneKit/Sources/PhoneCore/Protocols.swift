@@ -37,8 +37,18 @@ public struct DTMFOutcome: Equatable, Sendable {
 }
 public struct SIPConfig: Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
     public var host: String, user: String, password: String
-    public init(host: String, user: String, password: String) { self.host = host; self.user = user; self.password = password }
-    public var description: String { "SIPConfig(host: \(host), user: \(user), password: <redacted>)" }
+    /// Effective media-address mode (`.tunnelInterface` only together with `mediaBindAddress`).
+    public var mediaAddressMode: MediaAddressMode
+    /// Local IPv4 the audio socket binds to (and advertises) in `.tunnelInterface` mode.
+    public var mediaBindAddress: String?
+    public init(host: String, user: String, password: String,
+                mediaAddressMode: MediaAddressMode = .automatic, mediaBindAddress: String? = nil) {
+        self.host = host; self.user = user; self.password = password
+        self.mediaAddressMode = mediaAddressMode; self.mediaBindAddress = mediaBindAddress
+    }
+    public var description: String {
+        "SIPConfig(host: \(host), user: \(user), password: <redacted>, media: \(mediaAddressMode.rawValue)\(mediaBindAddress.map { " \($0)" } ?? ""))"
+    }
     public var debugDescription: String { description }
 }
 public enum SIPError: Error, Equatable { case authFailed, timeout, failed(String) }
@@ -52,6 +62,11 @@ public enum SIPError: Error, Equatable { case authFailed, timeout, failed(String
     func dial(_ number: String) throws -> Int
     func answer(_ callId: Int)
     func hangup(_ callId: Int)
+    /// True while the engine still knows the call and it is not disconnected.
+    func isCallActive(_ callId: Int) -> Bool
+    /// Last resort after a hang-up got no end event: terminate the call locally and forget it, so a half-dead
+    /// call cannot linger. Any end event it produces arrives for a call AppCore already ended (ignored).
+    func forceEnd(_ callId: Int)
     func setMuted(_ muted: Bool)
     /// Sends with `method` and returns its outcome.
     func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome]

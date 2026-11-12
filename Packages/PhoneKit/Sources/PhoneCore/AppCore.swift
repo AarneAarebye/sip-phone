@@ -22,6 +22,19 @@ public final class AppCore {
         }
     }
     public static let homeNotice = "VPN off – you are home"
+    /// Refusal shown by `dial` while a call is live; points at the "In call" row of the popover.
+    public static let alreadyInCall = "Already in a call – end the current call first (Hang up in the In call row above)"
+
+    /// Timing of the call watchdogs.
+    public struct CallWatchTiming: Sendable {
+        /// Pause between checks that the engine still knows the active call.
+        public var reconcileInterval: TimeInterval
+        /// After a local hang-up, wait this long for the end event before ending the call locally.
+        public var hangupTimeout: TimeInterval
+        public init(reconcileInterval: TimeInterval = 3, hangupTimeout: TimeInterval = 4) {
+            self.reconcileInterval = reconcileInterval; self.hangupTimeout = hangupTimeout
+        }
+    }
 
     public struct ActiveCall: Equatable {
         public var id: Int
@@ -43,9 +56,14 @@ public final class AppCore {
         public var endedLocally = false
         /// User-facing wording once the call has ended.
         public var endMessage: String?
+        /// When the call reached `.connected` (for the call timer).
+        public var connectedAt: Date?
     }
 
-    public private(set) var connection: Connection = .starting
+    public private(set) var connection: Connection = .starting {
+        // A "Not connected" dial refusal is stale once we are connected again.
+        didSet { if connection == .ready, lastError == "Not connected" { lastError = nil } }
+    }
     public private(set) var contacts: [Contact] = []
     /// All known phone books (including switched-off ones).
     public var phoneBooks: [PhoneBookSummary] { PhoneBooks.summaries(from: contacts) }
@@ -90,6 +108,10 @@ public final class AppCore {
     @ObservationIgnored private var vpnError: String?
     @ObservationIgnored private var reconnectGen = 0
     @ObservationIgnored private var callSerial = 0
+    @ObservationIgnored private let callTiming: CallWatchTiming
+    @ObservationIgnored private let callSleep: @Sendable (TimeInterval) async -> Void
+    @ObservationIgnored private var reconcileTask: Task<Void, Never>?
+    @ObservationIgnored private var hangupWatchTask: Task<Void, Never>?
 
     public init(sip: SIPEngine, phoneBook: PhoneBookService, vpn: VPNControlling, reachability: Reachability,
                 power: PowerAssertionControlling, cache: ContactCache, settings: AppSettings,
@@ -97,10 +119,13 @@ public final class AppCore {
                 phoneBookFailureDetail: @escaping () -> String? = { nil },
                 sleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) },
                 homeTiming: HomeCheckTiming = HomeCheckTiming(),
-                homeSleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) {
+                homeSleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) },
+                callTiming: CallWatchTiming = CallWatchTiming(),
+                callSleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) {
         self.sip = sip; self.phoneBook = phoneBook; self.vpn = vpn; self.reachability = reachability
         self.power = power; self.cache = cache; self.settings = settings; self.sipConfig = sipConfig; self.sleep = sleep
         self.homeTiming = homeTiming; self.homeSleep = homeSleep
+        self.callTiming = callTiming; self.callSleep = callSleep
         self.phoneBookFailureDetail = phoneBookFailureDetail
         contacts = cache.load()   // offline still shows the saved book
         rebuildIndex()
@@ -114,6 +139,9 @@ public final class AppCore {
     /// Wake from sleep and debounced network-path changes. With the app's own tunnel up, first checks whether the
     /// Mac is home (then the tunnel is stopped and the connection re-established without it).
     public func handleWake() async {
+        // A call the engine no longer knows must not hold the network-change handling back. Its deferred work
+        // is done right here, so it is not queued a second time.
+        if reconcile(trigger: "network change", runDeferred: false) { reRegisterAfterCall = false }
         pathChanged = true
         if deferWhileInCall() { return }
         homeCheckAfterCall = false
@@ -127,6 +155,7 @@ public final class AppCore {
     /// remember the request and re-register once the call has ended.
     private func deferWhileInCall() -> Bool {
         guard callIsLive else { return false }
+        if !reRegisterAfterCall { CallLog.logger.info("call #\(self.activeCall?.serial ?? 0, privacy: .public) live: network change / re-registration deferred until it ends") }
         reRegisterAfterCall = true
         return true
     }
@@ -136,13 +165,18 @@ public final class AppCore {
         eventTask?.cancel(); eventTask = nil
         connectTask?.cancel(); connectTask = nil
         cleanupTask?.cancel(); cleanupTask = nil
+        stopCallWatch()
         stopHomeWatch()
         homeCheckTask?.cancel(); homeCheckTask = nil
         homeCheckAfterCall = false
         bookTask?.cancel()   // clears itself when it finishes
         reRegisterAfterCall = false
         cancelReconnect()
-        if let c = activeCall { sip.hangup(c.id) }
+        if let c = activeCall {
+            CallLog.logger.info("call #\(c.serial, privacy: .public) hang up by shutdown (id \(c.id, privacy: .public)); activeCall cleared (shutdown)")
+            sip.hangup(c.id)
+            activeCall = nil
+        }
         sip.unregister()
         if startedVPN { await vpn.disconnect(); startedVPN = false }
     }
@@ -252,30 +286,33 @@ public final class AppCore {
     public func handle(_ event: SIPEvent) {
         switch event {
         case .incomingCall(let id, let remote, let called):
-            if let c = activeCall, !isEnded(c) { sip.hangup(id); return }   // busy: reject the second call
+            if let c = activeCall, !isEnded(c) { reconcile(trigger: "incoming call", runDeferred: true) }
+            if let c = activeCall, !isEnded(c) {   // busy: reject the second call
+                CallLog.logger.info("incoming call (id \(id, privacy: .public)) rejected: call #\(c.serial, privacy: .public) is live")
+                sip.hangup(id); return
+            }
             beginCall(ActiveCall(id: id, remote: remote, displayName: index.name(for: remote), calledNumber: called, isIncoming: true, state: .ringing, serial: 0))
         case .callState(let id, let state):
-            guard activeCall?.id == id else { return }
-            activeCall?.state = state
-            if case .connected = state { activeCall?.wasConnected = true }
+            guard let c = activeCall, c.id == id else {
+                CallLog.logger.info("state \(Self.describe(state), privacy: .public) for id \(id, privacy: .public) ignored: active call is \(self.activeCall.map { "#\($0.serial) id \($0.id)" } ?? "none", privacy: .public)")
+                return
+            }
+            guard !isEnded(c) else {
+                CallLog.logger.info("call #\(c.serial, privacy: .public) state \(Self.describe(state), privacy: .public) ignored: already ended")
+                return
+            }
+            CallLog.logger.info("call #\(c.serial, privacy: .public) state \(Self.describe(state), privacy: .public) (id \(id, privacy: .public))")
             if case .ended(let code, let reason) = state {
-                if let c = activeCall {
-                    let d = CallEndDescription.describe(code: code, reason: reason, isIncoming: c.isIncoming,
-                                                        wasConnected: c.wasConnected, endedLocally: c.endedLocally)
-                    activeCall?.endMessage = d.text
-                    if d.isError { lastError = d.text }
-                }
-                scheduleCallCleanup(activeCall?.serial ?? 0)
-                if reRegisterAfterCall {
-                    reRegisterAfterCall = false
-                    Task { [weak self] in await self?.handleWake() }   // includes a deferred home check
-                } else if homeCheckAfterCall {
-                    homeCheckAfterCall = false
-                    Task { [weak self] in _ = await self?.checkHome() }
-                }
+                callEnded(code: code, reason: reason, forcedMessage: nil, runDeferred: true)
+            } else {
+                activeCall?.state = state
+                if case .connected = state, !c.wasConnected { activeCall?.wasConnected = true; activeCall?.connectedAt = Date() }
             }
         case .callMedia(let id, let info):
-            guard activeCall?.id == id else { return }
+            guard activeCall?.id == id else {
+                CallLog.logger.info("media event for id \(id, privacy: .public) ignored: not the active call")
+                return
+            }
             activeCall?.media = info
             lastCallMedia = info.summary
             DTMFLog.logger.info("Call media active: \(info.summary, privacy: .public)")
@@ -292,12 +329,96 @@ public final class AppCore {
 
     private func isEnded(_ c: ActiveCall) -> Bool { if case .ended = c.state { return true }; return false }
 
+    static func describe(_ s: CallState) -> String {
+        switch s {
+        case .calling: return "calling"
+        case .ringing: return "ringing"
+        case .connected: return "connected"
+        case .ended(let code, let reason): return "ended \(code) \(reason)"
+        }
+    }
+
     private func beginCall(_ call: ActiveCall) {
         cleanupTask?.cancel(); cleanupTask = nil
         callSerial += 1
         var c = call; c.serial = callSerial
+        if let old = activeCall {
+            CallLog.logger.info("call #\(old.serial, privacy: .public) replaced by call #\(c.serial, privacy: .public) (activeCall cleared: new call)")
+        }
         activeCall = c
+        CallLog.logger.info("call #\(c.serial, privacy: .public) activeCall set: \(c.isIncoming ? "incoming" : "outgoing", privacy: .public), id \(c.id, privacy: .public), state \(Self.describe(c.state), privacy: .public)")
         sip.setMuted(false)
+        startCallWatch(serial: c.serial)
+    }
+
+    /// Ends the active call: wording, error, cleanup timer, watchdogs, deferred network-change work.
+    /// `forcedMessage`: the call was ended locally because the engine's end event is missing.
+    private func callEnded(code: Int, reason: String, forcedMessage: String?, runDeferred: Bool) {
+        guard let c = activeCall else { return }
+        activeCall?.state = .ended(code: code, reason: reason)
+        stopCallWatch()
+        if let m = forcedMessage {
+            activeCall?.endMessage = m
+        } else {
+            let d = CallEndDescription.describe(code: code, reason: reason, isIncoming: c.isIncoming,
+                                                wasConnected: c.wasConnected, endedLocally: c.endedLocally)
+            activeCall?.endMessage = d.text
+            if d.isError { lastError = d.text }
+        }
+        CallLog.logger.info("call #\(c.serial, privacy: .public) ended (\(code, privacy: .public) \(reason, privacy: .public)); end message: \(self.activeCall?.endMessage ?? "", privacy: .public)")
+        scheduleCallCleanup(c.serial)
+        guard runDeferred else { return }
+        if reRegisterAfterCall {
+            reRegisterAfterCall = false
+            CallLog.logger.info("call #\(c.serial, privacy: .public) deferred network-change handling: run")
+            Task { [weak self] in await self?.handleWake() }   // includes a deferred home check
+        } else if homeCheckAfterCall {
+            homeCheckAfterCall = false
+            CallLog.logger.info("call #\(c.serial, privacy: .public) deferred home check: run")
+            Task { [weak self] in _ = await self?.checkHome() }
+        }
+    }
+
+    /// The engine no longer knows the live active call (its end event was lost): end it as "Call ended".
+    /// Returns true when it ended the call.
+    @discardableResult
+    private func reconcile(trigger: String, runDeferred: Bool) -> Bool {
+        guard let c = activeCall, !isEnded(c), !sip.isCallActive(c.id) else { return false }
+        CallLog.logger.error("call #\(c.serial, privacy: .public) reconcile (\(trigger, privacy: .public)): engine lost the call (id \(c.id, privacy: .public)); ending it locally")
+        callEnded(code: 0, reason: "engine lost the call", forcedMessage: "Call ended", runDeferred: runDeferred)
+        return true
+    }
+
+    /// Every `reconcileInterval` while the call is live: reconcile with the engine. Ends with the call.
+    private func startCallWatch(serial: Int) {
+        stopCallWatch()
+        let interval = callTiming.reconcileInterval
+        reconcileTask = Task { [weak self, callSleep] in
+            while true {
+                await callSleep(interval)
+                guard !Task.isCancelled, let self, let c = self.activeCall, c.serial == serial, !self.isEnded(c) else { return }
+                self.reconcile(trigger: "tick", runDeferred: true)
+            }
+        }
+    }
+
+    private func stopCallWatch() {
+        reconcileTask?.cancel(); reconcileTask = nil
+        hangupWatchTask?.cancel(); hangupWatchTask = nil
+    }
+
+    /// After a local hang-up: without an end event within `hangupTimeout`, end the call locally and make the
+    /// engine destroy it (e.g. a BYE whose response never arrives keeps PJSIP's call alive for 32 s).
+    private func startHangupWatch(serial: Int) {
+        hangupWatchTask?.cancel()
+        let timeout = callTiming.hangupTimeout
+        hangupWatchTask = Task { [weak self, callSleep] in
+            await callSleep(timeout)
+            guard !Task.isCancelled, let self, let c = self.activeCall, c.serial == serial, !self.isEnded(c) else { return }
+            CallLog.logger.error("call #\(c.serial, privacy: .public) no end event \(timeout, privacy: .public) s after local hang up (id \(c.id, privacy: .public), engine active: \(self.sip.isCallActive(c.id), privacy: .public)); forcing the end")
+            self.callEnded(code: 0, reason: "no end event after hang up", forcedMessage: "Call ended", runDeferred: true)
+            self.sip.forceEnd(c.id)
+        }
     }
 
     private func scheduleCallCleanup(_ serial: Int) {
@@ -306,7 +427,10 @@ public final class AppCore {
             guard let self else { return }
             await self.sleep(2)
             guard !Task.isCancelled else { return }
-            if self.activeCall?.serial == serial { self.activeCall = nil }
+            if self.activeCall?.serial == serial {
+                self.activeCall = nil
+                CallLog.logger.info("call #\(serial, privacy: .public) activeCall cleared (cleanup timer)")
+            }
             await self.refreshHistory()
         }
     }
@@ -380,7 +504,10 @@ public final class AppCore {
     /// it stays pending and the re-registration is deferred until the call ends.
     private func applyNetworkChange() {
         guard pathChanged else { return }
-        if callIsLive { reRegisterAfterCall = true; return }
+        if callIsLive {
+            CallLog.logger.info("call #\(self.activeCall?.serial ?? 0, privacy: .public) live: transport rebind deferred until it ends")
+            reRegisterAfterCall = true; return
+        }
         pathChanged = false
         sip.networkChanged()
     }
@@ -405,7 +532,10 @@ public final class AppCore {
     @discardableResult
     private func checkHome() async -> Bool {
         guard startedVPN else { return false }
-        if callIsLive { homeCheckAfterCall = true; return false }
+        if callIsLive {
+            if !homeCheckAfterCall { CallLog.logger.info("call #\(self.activeCall?.serial ?? 0, privacy: .public) live: home check deferred until it ends") }
+            homeCheckAfterCall = true; return false
+        }
         if let t = homeCheckTask { return await t.value }
         guard connectTask == nil else { return false }
         let t = Task { [weak self] () -> Bool in
@@ -447,16 +577,40 @@ public final class AppCore {
     // MARK: Calls
 
     public func dial(_ raw: String) {
-        guard let number = DialString.dialable(raw) else { lastError = "Invalid number"; return }
-        if let c = activeCall, !isEnded(c) { lastError = "Already in a call"; return }
-        guard connection == .ready else { lastError = "Not connected"; return }
+        guard let number = DialString.dialable(raw) else {
+            CallLog.logger.info("dial refused: invalid number"); lastError = "Invalid number"; return
+        }
+        if let c = activeCall, !isEnded(c) { reconcile(trigger: "dial", runDeferred: true) }
+        if let c = activeCall, !isEnded(c) {
+            CallLog.logger.info("dial refused: call #\(c.serial, privacy: .public) is live (id \(c.id, privacy: .public), state \(Self.describe(c.state), privacy: .public))")
+            lastError = Self.alreadyInCall; return
+        }
+        guard connection == .ready else {
+            CallLog.logger.info("dial refused: not connected"); lastError = "Not connected"; return
+        }
+        CallLog.logger.info("dial requested")
         do {
             let id = try sip.dial(number)
             beginCall(ActiveCall(id: id, remote: number, displayName: index.name(for: number), isIncoming: false, state: .calling, serial: 0))
-        } catch { lastError = "Call failed: \(error.localizedDescription)" }
+        } catch {
+            CallLog.logger.error("dial failed in the engine: \(error.localizedDescription, privacy: .public)")
+            lastError = "Call failed: \(error.localizedDescription)"
+        }
     }
-    public func answer() { if let c = activeCall { sip.answer(c.id) } }
-    public func hangup() { if let c = activeCall { activeCall?.endedLocally = true; sip.hangup(c.id) } }   // also declines an unanswered incoming call
+    public func answer() {
+        guard let c = activeCall else { CallLog.logger.info("answer requested: no call"); return }
+        CallLog.logger.info("call #\(c.serial, privacy: .public) answer requested (id \(c.id, privacy: .public))")
+        sip.answer(c.id)
+    }
+    /// Also declines an unanswered incoming call. Starts the hang-up watchdog.
+    public func hangup() {
+        guard let c = activeCall else { CallLog.logger.info("hang up requested: no call"); return }
+        CallLog.logger.info("call #\(c.serial, privacy: .public) hang up requested (local, id \(c.id, privacy: .public), state \(Self.describe(c.state), privacy: .public))")
+        guard !isEnded(c) else { return }
+        activeCall?.endedLocally = true
+        sip.hangup(c.id)
+        startHangupWatch(serial: c.serial)
+    }
     public func toggleMute() {
         guard var c = activeCall else { return }
         c.muted.toggle(); activeCall = c; sip.setMuted(c.muted)
@@ -503,6 +657,11 @@ public final class AppCore {
 
 enum VPNLog {
     static let logger = Logger(subsystem: "com.aarneaarebye.sipphone", category: "vpn")
+}
+
+enum CallLog {
+    /// Call lifecycle; never numbers or names (calls are identified by a serial and the engine id).
+    static let logger = Logger(subsystem: "com.aarneaarebye.sipphone", category: "call")
 }
 
 enum DTMFLog {

@@ -11,6 +11,13 @@ typedef NS_ENUM(NSInteger, PJDTMFMethod) {
     PJDTMFMethodInband = 2,    ///< tone generator mixed into the call's outgoing audio
 };
 
+/// Which address the SDP advertises for call audio (see AppSettings.mediaAddressMode).
+typedef NS_ENUM(NSInteger, PJMediaAddressMode) {
+    PJMediaAddressModeAutomatic = 0,        ///< PJSIP default (address of the default-route interface)
+    PJMediaAddressModeNatRewrite = 1,       ///< AccountNatConfig.sdpNatRewriteUse: address the registrar saw (Via received=)
+    PJMediaAddressModeTunnelInterface = 2,  ///< media transport bound to (and advertising) `bindAddress`
+};
+
 /// Error domain for sendDTMF failures: code = pj_status_t, description = PJSIP reason (never the digits).
 extern NSString *const PJBridgeErrorDomain;
 
@@ -32,11 +39,21 @@ extern NSString *const PJBridgeErrorDomain;
 + (NSString *)version;
 - (BOOL)startAndReturnError:(NSError **)error;
 - (BOOL)registerAccountWithHost:(NSString *)host user:(NSString *)user password:(NSString *)password error:(NSError **)error;
+/// As above with a media-address mode; `bindAddress` is used (and required) only for TunnelInterface.
+/// A changed mode recreates the account, but only while no call is live (else it applies at the next registration).
+- (BOOL)registerAccountWithHost:(NSString *)host user:(NSString *)user password:(NSString *)password
+                      mediaMode:(PJMediaAddressMode)mediaMode bindAddress:(nullable NSString *)bindAddress
+                          error:(NSError **)error;
 /// Tears the account down (sends an unregister); a later registerAccount creates a fresh one.
 - (void)unregisterAccount;
 - (nullable NSNumber *)dial:(NSString *)number error:(NSError **)error;
 - (void)answer:(NSInteger)callId;
 - (void)hangup:(NSInteger)callId;
+/// The id is known to the bridge and PJSIP does not report the call as disconnected.
+- (BOOL)isCallActive:(NSInteger)callId;
+/// Last resort when a hang-up got no end event: terminates the INVITE session at once (pjsip_inv_terminate,
+/// which reports "ended" through the normal callback) and forgets the call.
+- (void)forceEndCall:(NSInteger)callId;
 - (void)setMuted:(BOOL)muted;
 /// Sends with exactly one method. On failure `error` carries the PJSIP status (code) and reason; nothing is swallowed.
 - (BOOL)sendDTMF:(NSString *)digits callId:(NSInteger)callId method:(PJDTMFMethod)method error:(NSError **)error;

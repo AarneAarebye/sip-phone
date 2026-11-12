@@ -55,3 +55,19 @@ Record pass or fail for each line. Needs a FRITZ!Box with an IP telephone and TR
 40. Call during the move home: start a call on the VPN, then join the home Wi-Fi. Expected: the call is not ended by the app; the VPN stays up until hang-up and stops within about 30 seconds afterwards. Audio may drop if macOS switches the call's route, since the SIP transport is only rebound after the call. Record what happened to the audio.
 41. Flapping: switch between the hotspot and the home Wi-Fi every few seconds. The VPN is not started and stopped on every switch; once settled at home it stops, once settled away it starts, and the registration recovers each time.
 42. System Settings: starting the "FRITZ!Box" VPN entry by hand in System Settings > VPN fails with "Start the VPN from SIP Phone" and leaves the Mac's network untouched.
+
+## Call state and media diagnostics
+
+43. Call controls cannot get lost: during a call the call panel has no close, minimise or zoom button, it can be dragged by its background, and it stays on screen when you click another app. Open the popover: an "In call" row at the top shows the name or number, the status or call timer, **Hang up** and **Show call window** (brings the panel to the front). Dialling while the call is live shows "Already in a call – end the current call first …".
+44. Lost end event recovers: end a call in a way that may lose the end signal (for example disconnect the network right after pressing Hang up, or let the other side hang up while the VPN is down). Within about 4 seconds after Hang up (or about 3 seconds after the engine dropped the call) the call shows "Call ended" and disappears, and a new call can be dialled. The `call` log shows "no end event … forcing the end" or "reconcile … engine lost the call".
+45. Media counters over the VPN: away from home, place a call through the app's VPN, talk for at least 10 seconds, hang up, then collect the diagnostics (below). The `media` category shows the local and remote SDP lines, the local and remote RTP address, the interfaces (physical and `utun`) and, every 5 seconds, `tx … pkts, rx … pkts`. "rx 0 pkts" with tx growing means no audio arrives; compare the local SDP `c=` address with the interfaces. Then repeat with Settings > Diagnostics > "Media address in calls" set to each other option (Save, then call again) and record which one gives two-way audio and its counters.
+
+### Collecting call diagnostics
+
+The app logs every call step (category `call`, without numbers) and the audio addresses and RTP counters (category `media`, private addresses only). Right after the call, run in Terminal:
+
+```
+/usr/bin/log show --last 10m --style compact --info --predicate 'subsystem == "com.aarneaarebye.sipphone" AND (category == "call" OR category == "media")'
+```
+
+Increase `--last` if the call was longer ago. The output contains no phone numbers, passwords or keys; public IP addresses appear as `<public>`.

@@ -34,7 +34,11 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
                 guard !Task.isCancelled else { return }
                 self?.resolve(.failure(SIPError.timeout))
             }
-            do { try bridge.registerAccount(withHost: config.host, user: config.user, password: config.password) }
+            do {
+                try bridge.registerAccount(withHost: config.host, user: config.user, password: config.password,
+                                           mediaMode: Self.bridgeMediaMode(config.mediaAddressMode),
+                                           bindAddress: config.mediaBindAddress)
+            }
             catch { resolve(.failure(SIPError.failed(error.localizedDescription))) }
         }
     }
@@ -66,12 +70,22 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
     }
     public func answer(_ callId: Int) { bridge.answer(callId) }
     public func hangup(_ callId: Int) { bridge.hangup(callId) }
+    public func isCallActive(_ callId: Int) -> Bool { bridge.isCallActive(callId) }
+    public func forceEnd(_ callId: Int) { bridge.forceEndCall(callId) }
     public func setMuted(_ muted: Bool) { bridge.setMuted(muted) }
     /// Rebinds the SIP transport after a network-path change; no-op before the first registration started PJSIP.
     public func networkChanged() { if started { bridge.handleIpChange() } }
     public func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome] {
         do { try bridge.sendDTMF(digits, callId: callId, method: Self.bridgeMethod(method)); return [DTMFOutcome(method: method)] }
         catch { return [DTMFOutcome(method: method, error: error.localizedDescription)] }
+    }
+
+    nonisolated static func bridgeMediaMode(_ m: MediaAddressMode) -> PJMediaAddressMode {
+        switch m {
+        case .automatic: return .automatic
+        case .natRewrite: return .natRewrite
+        case .tunnelInterface: return .tunnelInterface
+        }
     }
 
     nonisolated static func bridgeMethod(_ m: DTMFMethod) -> PJDTMFMethod {
