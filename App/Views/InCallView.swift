@@ -5,6 +5,7 @@ struct InCallView: View {
     let core: AppCore
     @State private var showKeypad = false
     @State private var connectedAt: Date?
+    private let notice = MicNotice.shared
 
     var body: some View {
         if let call = core.activeCall {
@@ -15,6 +16,13 @@ struct InCallView: View {
                     Text("Incoming call on \(called)").font(.caption).foregroundStyle(.secondary)
                 }
                 statusText(call)
+                if call.isIncoming, call.state == .ringing, let a = notice.incoming {
+                    VStack(spacing: 6) {
+                        Text(a == .restricted ? MicNotice.message(for: a) : "Microphone access needed to answer")
+                            .font(.caption).foregroundStyle(.red).multilineTextAlignment(.center)
+                        if a == .denied { Button("Open System Settings") { Microphone.openSettings() } }
+                    }
+                }
                 if call.state == .connected {
                     HStack(spacing: 16) {
                         Button { core.toggleMute() } label: {
@@ -39,7 +47,7 @@ struct InCallView: View {
             .onChange(of: call.state) { _, s in
                 if s == .connected { connectedAt = Date() }
             }
-            .onChange(of: call.serial) { _, _ in connectedAt = nil; showKeypad = false }
+            .onChange(of: call.serial) { _, _ in connectedAt = nil; showKeypad = false; notice.incoming = nil }
         }
     }
 
@@ -53,8 +61,5 @@ struct InCallView: View {
         }
     }
 
-    private func answer() async {
-        if await Microphone.ensureAccess() { core.answer() }
-        else { core.reportError("Microphone access denied"); core.hangup() }
-    }
+    private func answer() async { await Microphone.answer(core: core) }   // re-checks on every tap
 }

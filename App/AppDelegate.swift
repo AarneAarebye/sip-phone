@@ -13,7 +13,12 @@ import AppKit
         }
         Task { await env.core.start() }
     }
-    func applicationWillTerminate(_ notification: Notification) {
-        // Best effort: real shutdown (unregister/VPN stop) is awaited in Task 10.
+    /// Lets shutdown (unregister, VPN stop) finish, but never blocks quitting for more than a few seconds.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        var replied = false
+        func reply() { guard !replied else { return }; replied = true; NSApp.reply(toApplicationShouldTerminate: true) }
+        Task { @MainActor in await env.core.shutdown(); reply() }
+        Task { @MainActor in try? await Task.sleep(for: .seconds(4)); reply() }
+        return .terminateLater
     }
 }

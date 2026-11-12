@@ -40,8 +40,7 @@ import PhoneCore
         let action = response.actionIdentifier
         Task { @MainActor in
             if action == "ANSWER" {
-                if await Microphone.ensureAccess() { core.answer() }
-                else { core.reportError("Microphone access denied"); core.hangup() }
+                await Microphone.answer(core: core)   // on denial the call panel shows the explanation
             } else if action == "DECLINE" { core.hangup() }
             done()
         }

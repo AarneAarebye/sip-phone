@@ -3,23 +3,51 @@ import AVFoundation
 import AppKit
 import PhoneCore
 
-enum Microphone {
-    static func ensureAccess() async -> Bool {
+enum MicAccess { case authorized, denied, restricted }
+
+/// UI-layer state: why a call action was blocked by the microphone permission.
+@MainActor @Observable final class MicNotice {
+    static let shared = MicNotice()
+    /// Answering an incoming call is blocked (shown in the call panel).
+    var incoming: MicAccess?
+    /// Starting an outgoing call is blocked (shown in the popover).
+    var outgoing: MicAccess?
+
+    static func message(for a: MicAccess) -> String {
+        a == .restricted ? "Microphone access is restricted on this Mac (e.g. by a profile), so calls cannot be made."
+                         : "Microphone access needed to make or answer calls."
+    }
+}
+
+@MainActor enum Microphone {
+    /// Never opens System Settings itself; callers show a message and a button.
+    static func ensureAccess() async -> MicAccess {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized: return true
-        case .notDetermined: return await AVCaptureDevice.requestAccess(for: .audio)
-        default:
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
-            return false
+        case .authorized: return .authorized
+        case .notDetermined: return await AVCaptureDevice.requestAccess(for: .audio) ? .authorized : .denied
+        case .restricted: return .restricted
+        default: return .denied
         }
     }
 
-    /// Dials after making sure the microphone may be used; otherwise reports the error to the UI.
-    @MainActor static func dial(_ number: String, core: AppCore) {
+    static func openSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
+    }
+
+    /// Dials after making sure the microphone may be used; otherwise records the reason for the popover.
+    static func dial(_ number: String, core: AppCore) {
         Task {
-            if await ensureAccess() { core.dial(number) }
-            else { core.reportError("Microphone access denied – allow it in System Settings") }
+            let a = await ensureAccess()
+            if a == .authorized { MicNotice.shared.outgoing = nil; core.dial(number) }
+            else { MicNotice.shared.outgoing = a }
         }
+    }
+
+    /// Answers if allowed; otherwise leaves the call ringing and flags the call panel.
+    static func answer(core: AppCore) async {
+        let a = await ensureAccess()
+        if a == .authorized { MicNotice.shared.incoming = nil; core.answer() }
+        else { MicNotice.shared.incoming = a }
     }
 }
 

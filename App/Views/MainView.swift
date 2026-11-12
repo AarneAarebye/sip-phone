@@ -4,6 +4,7 @@ import PhoneCore
 struct MainView: View {
     let core: AppCore
     @State private var tab = 0
+    private let notice = MicNotice.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -13,6 +14,15 @@ struct MainView: View {
                     Text(e).font(.caption).foregroundStyle(.red).lineLimit(3)
                     Spacer()
                     Button { core.clearError() } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.borderless).help("Dismiss")
+                }.padding(.horizontal, 8).padding(.top, 4)
+            }
+            if let a = notice.outgoing {
+                HStack(alignment: .top) {
+                    Text(MicNotice.message(for: a)).font(.caption).foregroundStyle(.red).lineLimit(3)
+                    Spacer()
+                    if a == .denied { Button("Open System Settings") { Microphone.openSettings() }.font(.caption) }
+                    Button { notice.outgoing = nil } label: { Image(systemName: "xmark.circle.fill") }
                         .buttonStyle(.borderless).help("Dismiss")
                 }.padding(.horizontal, 8).padding(.top, 4)
             }
