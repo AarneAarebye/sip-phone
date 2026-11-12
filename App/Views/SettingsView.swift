@@ -4,6 +4,7 @@
 import SwiftUI
 import AppKit
 import PhoneCore
+import VPN
 
 struct SettingsView: View {
     let env: AppEnvironment
@@ -125,6 +126,12 @@ struct SettingsView: View {
                         storedCaption(false)
                     }
                 }
+                Toggle("Only send home-network traffic through the VPN (recommended)", isOn: $s.splitTunnel)
+                Text("The app starts the VPN by itself when you are away and stops it when you are back home. With this on, only the home network uses the VPN; everything else keeps your normal connection. Takes effect the next time the VPN starts.").font(.caption2)
+                if s.splitTunnel {
+                    TextField("Home network (CIDR)", text: $s.homeNetworkCIDR, prompt: Text("automatic, e.g. 192.168.65.0/24"))
+                    Text("Leave empty to use the /24 network of the WireGuard Address.").font(.caption2)
+                }
             }
             Section("Behaviour") {
                 Toggle("Keep Mac awake while on power", isOn: $s.keepAwakeOnPower)
@@ -133,6 +140,16 @@ struct SettingsView: View {
             if let loginItemMessage { Text(loginItemMessage).font(.caption).foregroundStyle(.red) }
             if let saveError { Text(saveError).font(.caption).foregroundStyle(.red) }
             Button("Save") {
+                let cidr = s.homeNetworkCIDR.trimmingCharacters(in: .whitespaces)
+                if !cidr.isEmpty {
+                    guard let normalized = SplitTunnelConfig.normalizedCIDR(cidr) else {
+                        saveError = "Home network must be a network in CIDR form, e.g. 192.168.65.0/24."
+                        return
+                    }
+                    s.homeNetworkCIDR = normalized
+                } else {
+                    s.homeNetworkCIDR = ""
+                }
                 Task {
                     let r = await env.applySettings(s, tr064Password: tr064Password, sipPassword: sipPassword,
                                                     wireguardConfig: wireguard)

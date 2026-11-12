@@ -63,5 +63,6 @@ struct MainView: View {
             if case .offline = core.connection { Button("Retry") { Task { await core.retry() } } }
         }.padding([.horizontal, .top], 8)
         if let n = core.phoneBookNotice { Text(n).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 8) }
+        if let n = core.vpnNotice { Text(n).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 8) }
     }
 }

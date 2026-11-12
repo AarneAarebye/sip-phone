@@ -78,7 +78,8 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
             return (s.fritzHost, s.tr064User, pw)
         }
         phoneBook = book
-        core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.sipphone.PacketTunnel"),
+        core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.sipphone.PacketTunnel",
+                                                                    routing: { Self.routing(store.load()) }),
                        reachability: FritzBoxReachability(host: { store.load().fritzHost }, pinned: { pins.load() }),
                        power: IOKitPowerAssertion(), cache: JSONFileContactCache.standard(), settings: store.load(),
                        sipConfig: {
@@ -87,6 +88,12 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                            return SIPConfig(host: s.fritzHost, user: s.sipUser, password: pw)
                        },
                        phoneBookFailureDetail: { book.failureDetail })
+    }
+
+    /// Split tunnel and home-network override from Settings (read at every VPN start).
+    nonisolated static func routing(_ s: AppSettings) -> TunnelRouting {
+        let cidr = s.homeNetworkCIDR.trimmingCharacters(in: .whitespaces)
+        return TunnelRouting(splitTunnel: s.splitTunnel, homeNetwork: cidr.isEmpty ? nil : cidr)
     }
 
     /// Whether a secret is stored in the Keychain (never reads the value).
