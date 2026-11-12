@@ -55,6 +55,7 @@ final class ClientTests: XCTestCase {
         XCTAssertEqual(contacts.count, 4)
         XCTAssertEqual(contacts.map(\.phoneBook), ["Telefonbuch (0)", "Telefonbuch (0)", "Telefonbuch (1)", "Telefonbuch (1)"])
         XCTAssertEqual(contacts.map(\.id), ["0-11", "0-12", "1-11", "1-12"])
+        XCTAssertEqual(contacts.map(\.phoneBookID), ["0", "0", "1", "1"])
         XCTAssertEqual(transport.requests.first?.value(forHTTPHeaderField: "SOAPAction"),
                        "\"urn:dslforum-org:service:X_AVM-DE_OnTel:1#GetPhonebookList\"")
         XCTAssertEqual(transport.requests.first?.url?.absoluteString, "https://fritz.box:49443/upnp/control/x_contact")
@@ -80,6 +81,20 @@ final class ClientTests: XCTestCase {
         let contacts = try await FritzTR064Client(host: "fritz.box", transport: transport).loadContacts()
         XCTAssertEqual(contacts.map(\.phoneBook), ["Telefonbuch (0)", "Familie", "Telefonbuch (2)", "Phone book 3"])
         XCTAssertEqual(contacts.map(\.id), ["0-7", "1-7", "2-7", "3-7"])
+        XCTAssertEqual(contacts.map(\.phoneBookID), ["0", "1", "2", "3"])
+    }
+
+    func testLoadContactsSetsBookIDForEmptyNamedBook() async throws {
+        let xml = Data(#"<phonebooks><phonebook name=""><contact><person><realName>X</realName></person><uniqueid>7</uniqueid></contact></phonebook></phonebooks>"#.utf8)
+        let transport = FakeTransport { req in
+            let action = req.value(forHTTPHeaderField: "SOAPAction") ?? ""
+            if action.hasSuffix("#GetPhonebookList\"") { return soapReply("GetPhonebookList", ["NewPhonebookList": "4"]) }
+            if action.hasSuffix("#GetPhonebook\"") { return soapReply("GetPhonebook", ["NewPhonebookURL": "https://fritz.box:49443/pb4.xml"]) }
+            return xml
+        }
+        let contacts = try await FritzTR064Client(host: "fritz.box", transport: transport).loadContacts()
+        XCTAssertEqual(contacts.map(\.phoneBookID), ["4"])
+        XCTAssertEqual(contacts.map(\.phoneBook), ["Phone book 4"])
     }
 
     func testLoadCallListAppendsMax() async throws {

@@ -70,7 +70,7 @@ Klicken Sie auf das Menüleistensymbol, dann auf „Settings…“. Füllen Sie 
 | **Local area code (e.g. 030)** | Ihre Ortsvorwahl, damit auch Nummern ohne Vorwahl funktionieren. |
 | **Keep Mac awake while on power** | Standardmäßig an. Verhindert den Ruhezustand des Macs im Netzbetrieb, damit er klingeln kann. |
 | **Launch at login** | Startet die App bei der Anmeldung. macOS bittet Sie möglicherweise, das in den Systemeinstellungen unter Allgemein > Anmeldeobjekte & Erweiterungen zu bestätigen (System Settings > General > Login Items; Bezeichnungen können je nach macOS-Version abweichen). |
-| **Phone books** | Ein Schalter pro FRITZ!Box-Telefonbuch, standardmäßig alle an; neue Telefonbücher starten eingeschaltet. Ein ausgeschaltetes Telefonbuch ist unter Contacts ausgeblendet und wird nicht für die Anzeige von Anrufernamen verwendet. Wird mit Save übernommen. Zeigt „Not loaded yet“, bis zum ersten erfolgreichen Laden. |
+| **Phone books** | Ein Schalter pro FRITZ!Box-Telefonbuch, standardmäßig alle an; neue Telefonbücher starten eingeschaltet. Ein ausgeschaltetes Telefonbuch ist unter Contacts ausgeblendet und wird nicht für die Anzeige von Anrufernamen verwendet. Wird mit Save übernommen. Die in History angezeigten Namen stammen aus der Anrufliste der FRITZ!Box selbst; das Ausschalten eines Telefonbuchs in der App ändert sie daher nicht. Zeigt „Not loaded yet“, bis zum ersten erfolgreichen Laden. |
 | **VPN (WireGuard)** | Nur für die Nutzung unterwegs, siehe Abschnitt 7. |
 | **Keypad tone method** (Diagnostics) | Auf „In-band audio tones (recommended)“ belassen. |
 

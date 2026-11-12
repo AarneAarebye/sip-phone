@@ -68,7 +68,7 @@ Click the menu bar icon, then Settings…. Fill in the fields below, then click 
 | **Local area code (e.g. 030)** | Your local area code, so numbers dialled without one still work. |
 | **Keep Mac awake while on power** | On by default. Keeps the Mac from idle sleep on mains power so it can ring. |
 | **Launch at login** | Starts the app when you sign in. macOS may ask you to approve it in System Settings > General > Login Items. |
-| **Phone books** | One switch per FRITZ!Box phone book, all on by default; new books start on. A switched-off book is hidden in Contacts and not used to show caller names. Applied with Save. Shows "Not loaded yet" until the first successful load. |
+| **Phone books** | One switch per FRITZ!Box phone book, all on by default; new books start on. A switched-off book is hidden in Contacts and not used to show caller names. Applied with Save. Names shown in History come from the FRITZ!Box's own call list, so switching a phone book off in the app does not change them. Shows "Not loaded yet" until the first successful load. |
 | **VPN (WireGuard)** | Only for use away from home, see section 7. |
 | **Keypad tone method** (Diagnostics) | Leave on "In-band audio tones (recommended)". |
 
