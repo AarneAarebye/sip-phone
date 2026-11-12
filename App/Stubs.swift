@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import PhoneCore
+import FritzTR064
 
 @MainActor final class UnavailableSIPEngine: SIPEngine {   // replaced in Task 8
     let events = AsyncStream<SIPEvent> { _ in }
@@ -16,17 +17,19 @@ import PhoneCore
 }
 @MainActor final class NoopPower: PowerAssertionControlling { func setPreventSleep(_ on: Bool) {} }   // replaced in Task 11
 
-/// TCP probe of the TR-064 port (49000, plain HTTP) — no ATS involved.
+/// TCP probe of the TR-064 TLS port the client uses — no ATS involved.
 struct TCPReachability: Reachability {
     let host: @Sendable () -> String
     func isFritzBoxReachable() async -> Bool {
-        let conn = NWConnection(host: NWEndpoint.Host(host()), port: 49000, using: .tcp)
+        let conn = NWConnection(host: NWEndpoint.Host(host()), port: NWEndpoint.Port(rawValue: UInt16(FritzTR064Client.defaultPort))!, using: .tcp)
         return await withCheckedContinuation { cont in
             let box = OnceBox(cont)
             conn.stateUpdateHandler = { state in
                 switch state {
                 case .ready: box.resume(true); conn.cancel()
-                case .failed, .cancelled: box.resume(false)
+                case .waiting: box.resume(false); conn.cancel()
+                case .failed: box.resume(false); conn.cancel()
+                case .cancelled: box.resume(false)
                 default: break
                 }
             }

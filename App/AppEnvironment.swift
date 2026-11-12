@@ -8,11 +8,33 @@ final class UserDefaultsPinStore: PinStore, @unchecked Sendable {
 }
 
 /// Late-bound phone book service so changing settings does not require rebuilding AppCore.
+/// Keeps one client (and TLS session) per credentials set; rebuilt only when they change.
 final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
-    private let make: @Sendable () -> PhoneBookService?
-    init(make: @escaping @Sendable () -> PhoneBookService?) { self.make = make }
-    func loadContacts() async throws -> [Contact] { try await (make() ?? { throw FritzError.missingField("TR-064 login") }()).loadContacts() }
-    func loadCallList() async throws -> [CallRecord] { try await (make() ?? { throw FritzError.missingField("TR-064 login") }()).loadCallList() }
+    private let credentials: @Sendable () -> (host: String, user: String, password: String)?
+    private let pins: PinStore
+    private let lock = NSLock()
+    private var key: String?
+    private var transport: URLSessionTransport?
+    private var client: FritzTR064Client?
+
+    init(pins: PinStore, credentials: @escaping @Sendable () -> (host: String, user: String, password: String)?) {
+        self.pins = pins; self.credentials = credentials
+    }
+
+    private func current() throws -> FritzTR064Client {
+        guard let c = credentials() else { throw FritzError.missingField("TR-064 login") }
+        let k = [c.host, c.user, c.password].joined(separator: "\u{1F}")
+        return lock.withLock {
+            if let client, key == k { return client }
+            transport?.invalidate()
+            let t = URLSessionTransport(username: c.user, password: c.password, pins: pins)
+            let cl = FritzTR064Client(host: c.host, transport: t)
+            transport = t; client = cl; key = k
+            return cl
+        }
+    }
+    func loadContacts() async throws -> [Contact] { try await current().loadContacts() }
+    func loadCallList() async throws -> [CallRecord] { try await current().loadCallList() }
 }
 
 @MainActor final class AppEnvironment {
@@ -22,11 +44,10 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
 
     init() {
         let store = settingsStore, secrets = secrets
-        let book = LivePhoneBook {
+        let book = LivePhoneBook(pins: UserDefaultsPinStore()) {
             let s = store.load()
             guard !s.tr064User.isEmpty, let pw = secrets.get(SecretKey.tr064Password) else { return nil }
-            return FritzTR064Client(host: s.fritzHost,
-                                    transport: URLSessionTransport(username: s.tr064User, password: pw, pins: UserDefaultsPinStore()))
+            return (s.fritzHost, s.tr064User, pw)
         }
         core = AppCore(sip: UnavailableSIPEngine(), phoneBook: book, vpn: UnavailableVPN(),
                        reachability: TCPReachability(host: { store.load().fritzHost }),
@@ -38,11 +59,21 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                        })
     }
 
-    func applySettings(_ s: AppSettings, tr064Password: String?, sipPassword: String?) async {
+    /// Returns an error message if a secret could not be stored (nothing else is applied in that case).
+    func applySettings(_ s: AppSettings, tr064Password: String?, sipPassword: String?, wireguardConfig: String? = nil) async -> String? {
+        let pending: [(String?, String, String)] = [
+            (tr064Password, SecretKey.tr064Password, "TR-064 password"),
+            (sipPassword, SecretKey.sipPassword, "SIP password"),
+            (wireguardConfig, SecretKey.wireguardConfig, "WireGuard configuration"),
+        ]
+        for (value, key, label) in pending {
+            guard let v = value, !v.isEmpty else { continue }
+            do { try secrets.set(v, for: key) }
+            catch { return "Could not save \(label) to the Keychain: \(error.localizedDescription)" }
+        }
         settingsStore.save(s)
-        if let p = tr064Password, !p.isEmpty { try? secrets.set(p, for: SecretKey.tr064Password) }
-        if let p = sipPassword, !p.isEmpty { try? secrets.set(p, for: SecretKey.sipPassword) }
         core.updateSettings(s)
         await core.retry()
+        return nil
     }
 }

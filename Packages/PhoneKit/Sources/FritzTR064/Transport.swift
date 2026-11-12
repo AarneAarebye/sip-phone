@@ -36,6 +36,9 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionDeleg
         session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
     }
 
+    /// Cancels in-flight requests and releases the session (which retains its delegate).
+    public func invalidate() { session.invalidateAndCancel() }
+
     public func send(_ request: URLRequest) async throws -> Data {
         lock.withLock { pinRejected = false }
         do {

@@ -2,10 +2,11 @@ import Foundation
 import PhoneCore
 
 public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
+    public static let defaultPort = 49443
     private let base: URL
     private let transport: HTTPTransport
 
-    public init(host: String, port: Int = 49443, transport: HTTPTransport) {
+    public init(host: String, port: Int = FritzTR064Client.defaultPort, transport: HTTPTransport) {
         self.base = URL(string: "https://\(host):\(port)")!
         self.transport = transport
     }
