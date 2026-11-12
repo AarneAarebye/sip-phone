@@ -65,15 +65,13 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
     public func hangup(_ callId: Int) { bridge.hangup(callId) }
     public func setMuted(_ muted: Bool) { bridge.setMuted(muted) }
     public func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome] {
-        method.wireMethods.map { m in
-            do { try bridge.sendDTMF(digits, callId: callId, method: Self.bridgeMethod(m)); return DTMFOutcome(method: m) }
-            catch { return DTMFOutcome(method: m, error: error.localizedDescription) }
-        }
+        do { try bridge.sendDTMF(digits, callId: callId, method: Self.bridgeMethod(method)); return [DTMFOutcome(method: method)] }
+        catch { return [DTMFOutcome(method: method, error: error.localizedDescription)] }
     }
 
     nonisolated static func bridgeMethod(_ m: DTMFMethod) -> PJDTMFMethod {
         switch m {
-        case .rfc2833, .both: return .RFC2833   // .both never reaches here (wireMethods splits it)
+        case .rfc2833: return .RFC2833
         case .sipInfo: return .sipInfo
         case .inband: return .inband
         }

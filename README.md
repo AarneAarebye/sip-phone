@@ -11,6 +11,7 @@ Targets: macOS 14 or later, universal binary (arm64 and x86_64, so Apple Silicon
 - Call history from the FRITZ!Box call list (TR-064), including missed calls and fax calls.
 - Contacts cached locally; cached contacts are used when the FRITZ!Box cannot be reached.
 - WireGuard VPN for use away from home. At home the app does not start it.
+- Keypad tones are sent as in-band audio by default, the only method that reaches the phone on the FRITZ!Box 6591 Cable; RFC 2833 and SIP INFO can be selected in Settings > Diagnostics.
 - Optional keep-awake while on AC power, and launch at login (both in Settings).
 
 ## Repository layout

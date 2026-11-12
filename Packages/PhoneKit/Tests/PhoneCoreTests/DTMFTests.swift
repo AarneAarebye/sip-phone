@@ -2,28 +2,28 @@ import XCTest
 @testable import PhoneCore
 
 @MainActor final class DTMFTests: XCTestCase {
-    private func connectedRig(method: DTMFMethod = .rfc2833) async -> Rig {
+    private func connectedRig(method: DTMFMethod = .inband) async -> Rig {
         let r = makeRig(reach: [true])
         await r.core.start()
-        if method != .rfc2833 { var s = AppSettings(); s.dtmfMethod = method; r.core.updateSettings(s) }
+        if method != AppSettings().dtmfMethod { var s = AppSettings(); s.dtmfMethod = method; r.core.updateSettings(s) }
         r.core.dial("0301234")
         r.core.handle(.callState(id: 7, .connected))
         return r
     }
 
-    func testDefaultSendsRFC2833ToActiveCallAndReportsSuccess() async {
+    func testDefaultSendsInbandToActiveCallAndReportsSuccess() async {
         let r = await connectedRig()
         r.core.sendDTMF("5")
         XCTAssertEqual(r.sip.dtmfSent.count, 1)
         XCTAssertEqual(r.sip.dtmfSent.first?.digits, "5")
         XCTAssertEqual(r.sip.dtmfSent.first?.callId, 7)
-        XCTAssertEqual(r.sip.dtmfSent.first?.method, .rfc2833)
-        XCTAssertEqual(r.core.activeCall?.dtmfStatus, "Tone sent via RFC 2833")
+        XCTAssertEqual(r.sip.dtmfSent.first?.method, .inband)
+        XCTAssertEqual(r.core.activeCall?.dtmfStatus, "Tone sent via In-band audio tones (recommended)")
         XCTAssertEqual(r.core.activeCall?.dtmfSerial, 1)
     }
 
     func testFailureIsSurfacedWithoutDigits() async {
-        let r = await connectedRig()
+        let r = await connectedRig(method: .rfc2833)
         r.sip.dtmfErrors[.rfc2833] = "No RFC 2833 support in remote [status 220107]"
         r.core.sendDTMF("1234")
         let status = r.core.activeCall?.dtmfStatus ?? ""
@@ -36,15 +36,6 @@ import XCTest
         r.core.sendDTMF("#")
         XCTAssertEqual(r.sip.dtmfSent.first?.method, .sipInfo)
         XCTAssertEqual(r.core.activeCall?.dtmfStatus, "Tone sent via SIP INFO")
-    }
-
-    func testBothReportsEachWireMethod() async {
-        let r = await connectedRig(method: .both)
-        r.sip.dtmfErrors[.sipInfo] = "Invalid operation [status 70013]"
-        r.core.sendDTMF("9")
-        XCTAssertEqual(r.core.activeCall?.dtmfStatus,
-                       "Tone sent via RFC 2833 · Tone failed (SIP INFO): Invalid operation [status 70013]")
-        XCTAssertEqual(r.core.activeCall?.dtmfSerial, 1)
     }
 
     func testNonDTMFCharactersAreNotSent() async {
@@ -87,21 +78,23 @@ import XCTest
         XCTAssertEqual(s.sipUser, "620")
         XCTAssertFalse(s.keepAwakeOnPower)
         XCTAssertTrue(s.launchAtLogin)
-        XCTAssertEqual(s.dtmfMethod, .rfc2833)
+        XCTAssertEqual(s.dtmfMethod, .inband)
     }
 
-    func testSettingsRoundTripAndUnknownMethodFallsBack() throws {
-        var s = AppSettings(); s.dtmfMethod = .both; s.sipUser = "621"
+    func testSettingsRoundTripAndFallbacks() throws {
+        XCTAssertEqual(AppSettings().dtmfMethod, .inband)
+        for m in DTMFMethod.allCases {
+            let json = #"{"sipUser":"622","dtmfMethod":"\#(m.rawValue)"}"#
+            XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8)).dtmfMethod, m)
+        }
+        var s = AppSettings(); s.dtmfMethod = .sipInfo; s.sipUser = "621"
         let back = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(s))
         XCTAssertEqual(back, s)
-        let odd = #"{"sipUser":"622","dtmfMethod":"smoke-signals"}"#
-        let o = try JSONDecoder().decode(AppSettings.self, from: Data(odd.utf8))
-        XCTAssertEqual(o.sipUser, "622")
-        XCTAssertEqual(o.dtmfMethod, .rfc2833)
-    }
-
-    func testWireMethods() {
-        XCTAssertEqual(DTMFMethod.both.wireMethods, [.rfc2833, .sipInfo])
-        XCTAssertEqual(DTMFMethod.inband.wireMethods, [.inband])
+        for bad in ["both", "smoke-signals"] {
+            let o = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"sipUser":"622","areaCode":"030","dtmfMethod":"\#(bad)"}"#.utf8))
+            XCTAssertEqual(o.sipUser, "622")
+            XCTAssertEqual(o.areaCode, "030")
+            XCTAssertEqual(o.dtmfMethod, .inband)
+        }
     }
 }

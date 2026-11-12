@@ -79,10 +79,7 @@ struct SettingsView: View {
                     ForEach(DTMFMethod.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("RFC 2833: tones as RTP telephone-events (default).")
-                    Text("SIP INFO: each tone as a SIP INFO message.")
-                    Text("RFC 2833 + SIP INFO: both, for testing only (the remote side may hear a tone twice).")
-                    Text("In-band audio: tones mixed into the call audio.")
+                    Text("In-band is the only method that reaches the phone on the FRITZ!Box 6591 Cable. RFC 2833 and SIP INFO are kept for other setups.")
                     Text("Takes effect after Save, also during a call. The in-call keypad shows the result of each press.")
                 }.font(.caption2)
                 Text("Last call: \(env.core.lastCallMedia ?? "no call audio yet")")

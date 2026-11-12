@@ -31,7 +31,7 @@ actor Gate {
     var dtmfErrors: [DTMFMethod: String] = [:]
     func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome] {
         dtmfSent.append((digits, callId, method))
-        return method.wireMethods.map { DTMFOutcome(method: $0, error: dtmfErrors[$0]) }
+        return [DTMFOutcome(method: method, error: dtmfErrors[method])]
     }
 }
 @MainActor final class FakeVPN: VPNControlling {

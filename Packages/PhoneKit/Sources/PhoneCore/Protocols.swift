@@ -50,7 +50,7 @@ public enum SIPError: Error, Equatable { case authFailed, timeout, failed(String
     func answer(_ callId: Int)
     func hangup(_ callId: Int)
     func setMuted(_ muted: Bool)
-    /// Sends with each of `method.wireMethods` in order and returns one outcome per wire method.
+    /// Sends with `method` and returns its outcome.
     func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome]
 }
 @MainActor public protocol VPNControlling: AnyObject {

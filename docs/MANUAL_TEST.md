@@ -19,7 +19,7 @@ Record pass or fail for each line. Needs a FRITZ!Box with an IP telephone and TR
 10. SIP registration works, both with `siptool` and in the app.
 11. Outgoing and incoming call audio works in both directions.
 12. Mute really silences the microphone: listen on the remote side.
-13. DTMF digits are received by the remote side.
+13. Keypad tones use in-band audio by default (Settings > Diagnostics > Keypad tone method): during a call to a mobile, the person on the remote side hears the beeps for each key pressed and the in-call keypad shows "sent via In-band audio tones (recommended)".
 
     **Keypad tones (DTMF):** during a connected call, open the in-call keypad and press a digit. The caption under the keypad says whether the tone was sent and with which method ("Tone sent via RFC 2833", or "Tone failed (RFC 2833): <PJSIP error>"); the line below it (and Settings > Diagnostics "Last call") shows whether the remote side offered telephone-event and its payload type. Then try each "Keypad tone method" in Settings > Diagnostics (RFC 2833, SIP INFO, RFC 2833 + SIP INFO, In-band audio; click Save, which also works during a call) and report which one the remote side actually hears, together with the caption text and the "Last call" line. The digits are never shown or logged; `log stream --level info --predicate 'subsystem == "com.aarneaarebye.sipphone" AND category == "dtmf"'` shows only counts, method and PJSIP status.
 
