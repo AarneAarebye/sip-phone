@@ -10,11 +10,19 @@ import PhoneCore
     func setUp() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        center.setNotificationCategories([UNNotificationCategory(identifier: "INCOMING", actions: [
+        center.setNotificationCategories([Self.incomingCategory()])
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    static let incomingPlaceholder = "Incoming call"
+    static let incomingCategoryOptions: UNNotificationCategoryOptions = [.hiddenPreviewsShowTitle]
+
+    /// With hidden previews the banner still shows the caller (title) and "Incoming call" instead of the generic "Notification".
+    nonisolated static func incomingCategory() -> UNNotificationCategory {
+        UNNotificationCategory(identifier: "INCOMING", actions: [
             UNNotificationAction(identifier: "ANSWER", title: "Answer", options: [.foreground]),
             UNNotificationAction(identifier: "DECLINE", title: "Decline", options: [.destructive]),
-        ], intentIdentifiers: [])])
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        ], intentIdentifiers: [], hiddenPreviewsBodyPlaceholder: incomingPlaceholder, options: incomingCategoryOptions)
     }
 
     /// Call from the observation loop whenever `core.activeCall` changes.
