@@ -3,6 +3,7 @@
 
 #import "PJBridge.h"
 #include <pjsua2.hpp>
+#include <os/log.h>
 #include <map>
 #include <memory>
 #include <string>
@@ -105,6 +106,18 @@ static NSError *PJError(const std::string &msg) {
 
 - (void)dealloc { [self shutdown]; }
 
+/// Logs every codec PJSIP offers with its priority once at startup (codec ids only, nothing user-specific),
+/// e.g. "codecs: G722/16000/1=255 PCMA/8000/1=254 PCMU/8000/1=253"; a priority of 0 means disabled.
++ (void)logCodecPriorities:(const CodecInfoVector2 &)codecs {
+    static os_log_t log = os_log_create("com.aarneaarebye.sipphone", "sip");
+    std::string line;
+    for (const CodecInfo &ci : codecs) {
+        if (!line.empty()) line += " ";
+        line += ci.codecId + "=" + std::to_string((unsigned)ci.priority);
+    }
+    os_log(log, "codecs: %{public}s", line.empty() ? "(none)" : line.c_str());
+}
+
 - (BOOL)startAndReturnError:(NSError **)error {
     if (_ep) return YES;
     try {
@@ -131,6 +144,7 @@ static NSError *PJError(const std::string &msg) {
             else if (ci.codecId == "PCMU/8000/1") prio = 253;
             _ep->codecSetPriority(ci.codecId, prio);
         }
+        [PJBridge logCodecPriorities:_ep->codecEnum2()];
         __weak PJBridge *weakSelf = self;
         _timer = [NSTimer timerWithTimeInterval:0.02 repeats:YES block:^(NSTimer *) {
             PJBridge *s = weakSelf;
