@@ -22,15 +22,21 @@ final class SystemExtensionActivation: NSObject, OSSystemExtensionRequestDelegat
         submit(request)
     }
 
-    /// The latest outcome, or the first one the system reports within `timeout` (else `.noAnswer`).
+    /// The latest outcome, or the first one the system reports within `timeout`. Returns `.noAnswer`
+    /// on timeout or when the calling task is cancelled (the request itself stays pending).
     func current(timeout: TimeInterval = 30) async -> Outcome {
-        await withCheckedContinuation { cont in
-            let id = UUID()
-            lock.lock()
-            if let outcome { lock.unlock(); return cont.resume(returning: outcome) }
-            waiters[id] = cont
-            lock.unlock()
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { self.resume(id, with: .noAnswer) }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { cont in
+                lock.lock()
+                if let outcome { lock.unlock(); return cont.resume(returning: outcome) }
+                waiters[id] = cont
+                lock.unlock()
+                if Task.isCancelled { resume(id, with: .noAnswer) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { self.resume(id, with: .noAnswer) }
+            }
+        } onCancel: {
+            resume(id, with: .noAnswer)
         }
     }
 

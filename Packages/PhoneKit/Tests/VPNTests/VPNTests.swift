@@ -130,6 +130,15 @@ final class SystemExtensionActivationTests: XCTestCase {
         XCTAssertEqual(timedOut, .noAnswer)
     }
 
+    func testWaitEndsWhenCallerIsCancelled() async {
+        let (a, _) = make()
+        let waiting = Task { await a.current(timeout: 30) }
+        try? await Task.sleep(for: .milliseconds(20))
+        waiting.cancel()
+        let outcome = await waiting.value
+        XCTAssertEqual(outcome, .noAnswer)
+    }
+
     func testResultMapping() {
         XCTAssertEqual(SystemExtensionActivation.outcome(for: .completed), .activated)
         XCTAssertEqual(SystemExtensionActivation.outcome(for: .willCompleteAfterReboot), .rebootRequired)
@@ -156,5 +165,95 @@ final class VPNManagerValidationTests: XCTestCase {
     private func assertThrows(_ expected: VPNError, _ body: () async throws -> Void) async {
         do { try await body(); XCTFail("expected \(expected)") }
         catch { XCTAssertEqual(error as? VPNError, expected) }
+    }
+}
+
+/// Records calls; activation is held until `releaseActivation` (cancellable, like the real one).
+@MainActor
+private final class FakeBackend: TunnelBackend {
+    var activations = 0, starts = 0, stops = 0
+    var activationReleased = false
+    var connectOnStart = true
+    var status: NEVPNStatus = .disconnected
+
+    func activateExtension() async throws {
+        activations += 1
+        while !activationReleased { try await Task.sleep(for: .milliseconds(5)) }
+    }
+    func configure(serverAddress: String) async throws {}
+    func start(options: [String: NSObject]) throws {
+        XCTAssertNotNil(TunnelConfigHandoff.config(fromStartOptions: options))
+        starts += 1
+        status = connectOnStart ? .connected : .connecting
+    }
+    func stop() async { stops += 1; status = .disconnected }
+    func lastDisconnectReason() async -> String? { nil }
+}
+
+@MainActor
+final class VPNManagerConcurrencyTests: XCTestCase {
+    private func makeManager() -> (VPNManager, FakeBackend) {
+        let s = FakeSecrets(); s.values[SecretKey.wireguardConfig] = dummyConfig
+        let backend = FakeBackend()
+        return (VPNManager(secrets: s, backend: backend), backend)
+    }
+
+    private func waitUntil(_ condition: @MainActor () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<400 where !condition() { try? await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertTrue(condition(), "condition not reached", file: file, line: line)
+    }
+
+    func testRepeatedConnectCallsShareOneAttempt() async throws {
+        let (vpn, backend) = makeManager()
+        async let a: Void = vpn.connect()
+        async let b: Void = vpn.connect()
+        await waitUntil { backend.activations == 1 }
+        backend.activationReleased = true
+        _ = try await (a, b)
+        XCTAssertEqual(backend.activations, 1)
+        XCTAssertEqual(backend.starts, 1)
+        try await vpn.connect()                       // already connected: no new start
+        XCTAssertEqual(backend.starts, 1)
+    }
+
+    func testCancelledJoinerDoesNotCancelSharedAttempt() async throws {
+        let (vpn, backend) = makeManager()
+        let first = Task { try await vpn.connect() }
+        let second = Task { try await vpn.connect() }
+        await waitUntil { backend.activations == 1 }
+        second.cancel()
+        do { try await second.value; XCTFail("cancelled caller should throw") }
+        catch { XCTAssertTrue(error is CancellationError, "\(error)") }
+        backend.activationReleased = true
+        try await first.value                          // the shared attempt kept going
+        XCTAssertEqual(backend.starts, 1)
+        XCTAssertEqual(backend.status, .connected)
+    }
+
+    func testDisconnectDuringActivationPreventsStart() async throws {
+        let (vpn, backend) = makeManager()
+        let connecting = Task { try await vpn.connect() }
+        await waitUntil { backend.activations == 1 }
+        await vpn.disconnect()
+        backend.activationReleased = true              // even if the system answers later
+        do { try await connecting.value; XCTFail("expected cancellation") }
+        catch { XCTAssertTrue(error is CancellationError, "\(error)") }
+        try? await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(backend.starts, 0)
+        XCTAssertEqual(backend.stops, 1)
+    }
+
+    func testDisconnectAfterStartStopsTunnel() async throws {
+        let (vpn, backend) = makeManager()
+        backend.activationReleased = true
+        backend.connectOnStart = false                 // stays .connecting
+        let connecting = Task { try await vpn.connect() }
+        await waitUntil { backend.starts == 1 }
+        await vpn.disconnect()
+        XCTAssertEqual(backend.stops, 1)
+        XCTAssertEqual(backend.status, .disconnected)
+        do { try await connecting.value; XCTFail("expected cancellation") }
+        catch { XCTAssertTrue(error is CancellationError, "\(error)") }
+        XCTAssertEqual(backend.starts, 1)
     }
 }
