@@ -3,14 +3,6 @@ import Network
 import PhoneCore
 import FritzTR064
 
-@MainActor final class UnavailableSIPEngine: SIPEngine {   // replaced in Task 8
-    let events = AsyncStream<SIPEvent> { _ in }
-    func register(_ config: SIPConfig) async throws { throw SIPError.failed("SIP engine not installed yet") }
-    func unregister() {}
-    func dial(_ number: String) throws -> Int { throw SIPError.failed("SIP engine not installed yet") }
-    func answer(_ callId: Int) {}; func hangup(_ callId: Int) {}
-    func setMuted(_ muted: Bool) {}; func sendDTMF(_ digits: String, callId: Int) {}
-}
 @MainActor final class UnavailableVPN: VPNControlling {   // replaced in Task 10
     func connect() async throws { throw SIPError.failed("VPN not installed yet") }
     func disconnect() async {}

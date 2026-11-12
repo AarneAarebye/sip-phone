@@ -16,11 +16,17 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aarneaarebye.fritzphone
+      configs:
+        Release:
+          ARCHS: "arm64 x86_64"
+          ONLY_ACTIVE_ARCH: NO
     dependencies:
       - package: PhoneKit
         product: PhoneCore
       - package: PhoneKit
         product: FritzTR064
+      - package: PhoneKit
+        product: SIPEngine
     info:
       path: App/Info.plist
       properties:
@@ -31,4 +37,5 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
+        com.apple.security.network.server: true
         com.apple.security.device.audio-input: true
