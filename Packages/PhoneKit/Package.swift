@@ -14,10 +14,8 @@ let package = Package(
         .binaryTarget(name: "PJSIP", path: "Frameworks/PJSIP.xcframework"),
         .target(name: "PJBridge", dependencies: ["PJSIP"],
                 cxxSettings: [.unsafeFlags(["-std=c++17"]),
-                              // PJSIP headers need the autoconf platform defines (both archs are little-endian)
-                              .define("PJ_AUTOCONF", to: "1"),
-                              .define("PJ_IS_LITTLE_ENDIAN", to: "1"),
-                              .define("PJ_IS_BIG_ENDIAN", to: "0")],
+                              // same -D the PJSIP library build uses (pulls in the autoconf-generated headers)
+                              .define("PJ_AUTOCONF", to: "1")],
                 linkerSettings: [.linkedLibrary("c++"),
                                  .linkedFramework("CoreAudio"), .linkedFramework("AudioToolbox"),
                                  .linkedFramework("AudioUnit"), .linkedFramework("AVFoundation"),

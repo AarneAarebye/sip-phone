@@ -22,6 +22,10 @@ build_arch() {   # $1 = arm64 | x86_64 ; leaves $WORK/libpjsip-$1.a
   ./configure $HOST --disable-video --disable-ssl --disable-libyuv --disable-sdl --disable-ffmpeg \
               --disable-openh264 --disable-vpx --disable-opencore-amr --disable-bcg729 --disable-darwin-ssl
   # parallel make can race on creating output subdirs (e.g. g722); a serial retry finishes the job
+  # configure probes an "arm" host as 32-bit (PJ_POOL_ALIGNMENT 4) but x86_64 as 8. The merged header tree is shared
+  # by both archs, so force 8 in both builds; libraries and headers then agree on pool layout.
+  sed -i '' 's/^#define PJ_POOL_ALIGNMENT .*/#define PJ_POOL_ALIGNMENT 8/' pjlib/include/pj/compat/os_auto.h
+  grep -q '^#define PJ_POOL_ALIGNMENT 8$' pjlib/include/pj/compat/os_auto.h
   make dep && { make -j"$(sysctl -n hw.ncpu)" || make; }
   libtool -static -o "$WORK/libpjsip-$ARCH.a" $(find . -path '*/lib/*.a')
   cd "$WORK"
