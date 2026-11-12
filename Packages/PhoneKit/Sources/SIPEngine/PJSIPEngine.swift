@@ -67,6 +67,8 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
     public func answer(_ callId: Int) { bridge.answer(callId) }
     public func hangup(_ callId: Int) { bridge.hangup(callId) }
     public func setMuted(_ muted: Bool) { bridge.setMuted(muted) }
+    /// Rebinds the SIP transport after a network-path change; no-op before the first registration started PJSIP.
+    public func networkChanged() { if started { bridge.handleIpChange() } }
     public func sendDTMF(_ digits: String, callId: Int, method: DTMFMethod) -> [DTMFOutcome] {
         do { try bridge.sendDTMF(digits, callId: callId, method: Self.bridgeMethod(method)); return [DTMFOutcome(method: method)] }
         catch { return [DTMFOutcome(method: method, error: error.localizedDescription)] }

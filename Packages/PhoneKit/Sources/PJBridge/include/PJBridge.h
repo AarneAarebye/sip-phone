@@ -40,6 +40,10 @@ extern NSString *const PJBridgeErrorDomain;
 - (void)setMuted:(BOOL)muted;
 /// Sends with exactly one method. On failure `error` carries the PJSIP status (code) and reason; nothing is swallowed.
 - (BOOL)sendDTMF:(NSString *)digits callId:(NSInteger)callId method:(PJDTMFMethod)method error:(NSError **)error;
+/// The network path changed: pjsua2 Endpoint::handleIpChange (restarts the UDP listener, then re-registers the
+/// account with its new contact address). No-op before start. Do not call during a live call (the caller
+/// defers it); pjsua itself would keep calls (hangupCalls = false) and re-INVITE them.
+- (void)handleIpChange;
 - (void)shutdown;
 @end
 NS_ASSUME_NONNULL_END

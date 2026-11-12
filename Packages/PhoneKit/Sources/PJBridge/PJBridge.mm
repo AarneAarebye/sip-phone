@@ -31,7 +31,12 @@ static NSError *PJStatusError(pj_status_t status, const std::string &reason) {
 class BridgeAccount : public Account {
 public:
     explicit BridgeAccount(PJBridge *owner) : owner_(owner) {}
-    void onRegState(OnRegStateParam &prm) override { [owner_ handleRegCode:prm.code reason:prm.reason]; }
+    void onRegState(OnRegStateParam &prm) override {
+        // A 2xx with expiration 0 answers an un-REGISTER (sent by handleIpChange before it re-registers with the
+        // new contact): not a registration result. Explicit unregisters destroy the account, which is ignored anyway.
+        if (prm.code / 100 == 2 && prm.expiration == 0) return;
+        [owner_ handleRegCode:prm.code reason:prm.reason];
+    }
     void onIncomingCall(OnIncomingCallParam &prm) override { [owner_ handleIncoming:prm.callId wholeMsg:prm.rdata.wholeMsg]; }
 private:
     __unsafe_unretained PJBridge *owner_;   // the bridge owns (and outlives) its account
@@ -168,7 +173,11 @@ static NSError *PJError(const std::string &msg) {
     // network changes, wake and Settings saves, so only a real account change ends them.
     if (_acc && _host == h && _user == u && _password == p) {
         try { _acc->setRegistration(true); return YES; }
-        catch (Error &) { /* fall back to recreating the account */ }
+        catch (Error &e) {
+            // A REGISTER is already in flight (e.g. the one handleIpChange sends): its result arrives via onRegState.
+            if (e.status == PJSIP_EBUSY) return YES;
+            /* otherwise fall back to recreating the account */
+        }
     }
     try {
         [self endAllCallsWithReason:@"Account replaced"];   // calls reference the account: end them first
@@ -360,6 +369,20 @@ static NSString *CalledPartyHeader(const std::string &msg) {
             try { CallOpParam prm; prm.statusCode = PJSIP_SC_DECLINE; entry.second->hangup(prm); } catch (...) {}
             [self.delegate callStateChanged:entry.first state:@"ended" statusCode:487 reason:reason];
         }
+    }
+}
+
+- (void)handleIpChange {
+    if (!_ep) return;
+    static os_log_t log = os_log_create("com.aarneaarebye.sipphone", "sip");
+    try {
+        IpChangeParam prm;
+        prm.restartListener = true;
+        prm.restartLisDelay = PJSUA_TRANSPORT_RESTART_DELAY_TIME;   // 10 ms
+        _ep->handleIpChange(prm);
+        os_log(log, "network change: SIP transport restarted");
+    } catch (Error &e) {
+        os_log_error(log, "network change: handleIpChange failed [status %d]", (int)e.status);
     }
 }
 
