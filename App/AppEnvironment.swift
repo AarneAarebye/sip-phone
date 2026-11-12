@@ -6,9 +6,12 @@ import SIPEngine
 import VPN
 import SystemAdapters
 
+/// The pinned FRITZ!Box certificate fingerprint, in the app's (sandbox container) user defaults.
 final class UserDefaultsPinStore: PinStore, @unchecked Sendable {
-    func load() -> String? { UserDefaults.standard.string(forKey: "tr064CertFingerprint") }
-    func save(_ fingerprint: String) { UserDefaults.standard.set(fingerprint, forKey: "tr064CertFingerprint") }
+    static let key = "tr064CertFingerprint"
+    func load() -> String? { UserDefaults.standard.string(forKey: Self.key) }
+    func save(_ fingerprint: String) { UserDefaults.standard.set(fingerprint, forKey: Self.key) }
+    func clear() { UserDefaults.standard.removeObject(forKey: Self.key) }
 }
 
 /// Late-bound phone book service so changing settings does not require rebuilding AppCore.
@@ -45,24 +48,33 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
     let settingsStore = SettingsStore()
     let secrets: SecretStore = KeychainSecretStore()
     let core: AppCore
+    let pinStore = UserDefaultsPinStore()
     /// Held for the app lifetime: the IOPS run-loop callback keeps an unretained pointer to it.
     lazy var monitors = SystemMonitors(core: core)
 
     init() {
-        let store = settingsStore, secrets = secrets
-        let book = LivePhoneBook(pins: UserDefaultsPinStore()) {
+        let store = settingsStore, secrets = secrets, pins = pinStore
+        let book = LivePhoneBook(pins: pins) {
             let s = store.load()
             guard !s.tr064User.isEmpty, let pw = secrets.get(SecretKey.tr064Password) else { return nil }
             return (s.fritzHost, s.tr064User, pw)
         }
         core = AppCore(sip: PJSIPEngine(), phoneBook: book, vpn: VPNManager(secrets: secrets, extensionBundleId: "com.aarneaarebye.fritzphone.PacketTunnel"),
-                       reachability: TCPReachability(host: { store.load().fritzHost }),
+                       reachability: FritzBoxReachability(host: { store.load().fritzHost }, pinned: { pins.load() }),
                        power: IOKitPowerAssertion(), cache: JSONFileContactCache.standard(), settings: store.load(),
                        sipConfig: {
                            let s = store.load()
                            guard !s.sipUser.isEmpty, let pw = secrets.get(SecretKey.sipPassword) else { return nil }
                            return SIPConfig(host: s.fritzHost, user: s.sipUser, password: pw)
                        })
+    }
+
+    var hasPinnedCertificate: Bool { pinStore.load() != nil }
+
+    /// After replacing or resetting the FRITZ!Box: trust the certificate seen on the next connection.
+    func forgetPinnedCertificate() async {
+        pinStore.clear()
+        await core.retry()   // re-probes without the pin and reloads the phone book, which pins the new certificate
     }
 
     struct ApplyResult { var saveError: String?; var loginItemMessage: String? }
@@ -94,10 +106,10 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
         await core.retry()
         var message: String?
         do {
-            // `try await`: the Xcode 27 SDK declares register()/unregister() async.
+            // The Xcode 27 SDK declares unregister() async but register() synchronous.
             switch LaunchAtLogin.action(desired: s.launchAtLogin, status: Self.loginItemStatus()) {
             case .register:
-                try await SMAppService.mainApp.register()
+                try SMAppService.mainApp.register()
                 if SMAppService.mainApp.status == .requiresApproval {
                     message = "Approve Fritz Phone in System Settings > General > Login Items."
                 } else if SMAppService.mainApp.status == .notFound {

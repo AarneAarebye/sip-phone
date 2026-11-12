@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var wireguard = ""
     @State private var saveError: String?
     @State private var loginItemMessage: String?
+    @State private var hasPin = false
 
     var body: some View {
         Form {
@@ -18,6 +19,16 @@ struct SettingsView: View {
                 SecureField("SIP password (leave empty to keep)", text: $sipPassword)
                 TextField("FRITZ!Box user (TR-064)", text: $s.tr064User)
                 SecureField("TR-064 password (leave empty to keep)", text: $tr064Password)
+            }
+            Section("Certificate") {
+                HStack {
+                    Text(hasPin ? "The FRITZ!Box certificate is pinned." : "No certificate pinned yet.").font(.caption)
+                    Spacer()
+                    Button("Forget pinned certificate") {
+                        Task { await env.forgetPinnedCertificate(); hasPin = env.hasPinnedCertificate }
+                    }.disabled(!hasPin)
+                }
+                Text("Only after replacing or resetting your FRITZ!Box. The next connection's certificate is trusted.").font(.caption2)
             }
             Section("Numbers") {
                 TextField("Country code", text: $s.countryCode)
@@ -45,6 +56,7 @@ struct SettingsView: View {
         .formStyle(.grouped).frame(width: 440).padding()
         .onAppear {
             s = env.settingsStore.load()
+            hasPin = env.hasPinnedCertificate
             s.launchAtLogin = LaunchAtLogin.isOn(AppEnvironment.loginItemStatus())
         }
         .background(SettingsWindowActivator())
