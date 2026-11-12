@@ -1,3 +1,5 @@
+Deutsche Version: [SETUP.de.md](SETUP.de.md)
+
 # SIP Phone: setup guide
 
 This guide is for FRITZ!Box owners who want to use SIP Phone on a Mac. You do not need to be a developer to follow it.
@@ -20,9 +22,9 @@ Once you have `SipPhone.app`:
 
 1. Move it to the `/Applications` folder. This is required for the VPN extension to work (see section 7).
 2. Open it. There is no Dock icon and no window. Look for the phone icon in the menu bar at the top right of your screen.
-3. If you do not see the icon, it may be hidden. On Macs with a notch, or with a menu bar manager installed, icons can end up behind the notch or in the manager's overflow area. Hold the Command key (&#8984;) and drag other icons away to make room, or open your menu bar manager's overflow.
+3. If you do not see the icon, it may be hidden. On Macs with a notch, or with a menu bar manager installed, icons can end up behind the notch or in the manager's overflow area. Hold the Command key (⌘) and drag other icons away to make room, or open your menu bar manager's overflow.
 
-Click the icon to open the popover. It shows a status line, three tabs (Contacts, History, Keypad), and the buttons Settings&hellip; and Quit.
+Click the icon to open the popover. It shows a status line, three tabs (Contacts, History, Keypad), and the buttons Settings… and Quit.
 
 ## 3. Prepare the FRITZ!Box
 
@@ -53,7 +55,7 @@ Make sure the FRITZ!Box allows access for applications. The menu path may differ
 
 ## 4. First start and Settings
 
-Click the menu bar icon, then Settings&hellip;. Fill in the fields below, then click Save.
+Click the menu bar icon, then Settings…. Fill in the fields below, then click Save.
 
 | Settings field | What to enter |
 |---|---|
@@ -108,7 +110,7 @@ For notifications, open System Settings > Notifications > SIP Phone and set Show
 - **Keypad** to send tones, for example for menus on a hotline. A short caption confirms each press.
 - **Hang up** to end the call.
 
-**Incoming calls** show a floating window and a notification, both with Answer and Decline. If your FRITZ!Box has several numbers, the line "Incoming call on &lt;number&gt;" tells you which of your numbers was called. This is best effort: it depends on what the FRITZ!Box sends.
+**Incoming calls** show a floating window and a notification, both with Answer and Decline. If your FRITZ!Box has several numbers, the line "Incoming call on <number>" tells you which of your numbers was called. This is best effort: it depends on what the FRITZ!Box sends.
 
 When a call ends, the call window shows one of these messages:
 
@@ -123,9 +125,9 @@ When a call ends, the call window shows one of these messages:
 | Busy | The line is busy. |
 | Not available | The number could not be reached. |
 | No answer | Nobody picked up in time. |
-| Call failed: &lt;code&gt; | Something else went wrong. Shown in red. Only this one is treated as an error. |
+| Call failed: <code> | Something else went wrong. Shown in red. Only this one is treated as an error. |
 
-## 7. Away from home (WireGuard) &mdash; experimental
+## 7. Away from home (WireGuard) — experimental
 
 **Experimental: the VPN extension has not yet been tested on a real system.** Everything at home works without it. Treat this section as a preview.
 
