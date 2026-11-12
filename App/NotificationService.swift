@@ -31,14 +31,17 @@ import PhoneCore
         let c = UNMutableNotificationContent()
         c.title = call.displayName ?? call.remote
         c.body = call.calledNumber.map { "Incoming call on \($0)" } ?? "Incoming call"
-        c.categoryIdentifier = "INCOMING"; c.sound = .defaultCritical
+        c.categoryIdentifier = "INCOMING"; c.sound = .default
         center.add(UNNotificationRequest(identifier: ident, content: c, trigger: nil))
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler done: @escaping () -> Void) {
         let action = response.actionIdentifier
+        let ident = response.notification.request.identifier
         Task { @MainActor in
+            // Act only on the notification of the current call: a stale banner must not answer or decline a newer one.
+            guard let call = core.activeCall, ident == "call-\(call.serial)" else { done(); return }
             if action == "ANSWER" {
                 await Microphone.answer(core: core)   // on denial the call panel shows the explanation
             } else if action == "DECLINE" { core.hangup() }

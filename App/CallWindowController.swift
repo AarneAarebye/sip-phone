@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import PhoneCore
 
-/// Non-activating panel that can still become key, so the Answer button's Return shortcut works
+/// Non-activating panel that can become key when clicked, so the Answer button's Return shortcut works
 /// without activating the app (and without disturbing SettingsActivation's activation policy).
 private final class CallPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -25,7 +25,9 @@ private final class CallPanel: NSPanel {
                 p.level = .floating; p.isReleasedWhenClosed = false
                 p.center()
                 panel = p
-                p.makeKeyAndOrderFront(nil)   // key, but non-activating: does not steal the frontmost app's focus
+                // Shown but NOT made key: someone typing in another app must not answer by pressing Return.
+                // A click on the panel makes it key (non-activating), which enables the Return shortcut.
+                p.orderFrontRegardless()
             } else {
                 panel?.orderFrontRegardless()
             }
