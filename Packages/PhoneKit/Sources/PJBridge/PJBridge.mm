@@ -11,6 +11,7 @@ using namespace pj;
 - (void)handleIncoming:(int)callId;
 - (void)handleCallState:(int)callId;
 - (void)applyMuteToCapture;
+- (void)endAllCallsWithReason:(NSString *)reason;
 @end
 
 class BridgeAccount : public Account {
@@ -105,13 +106,14 @@ static NSError *PJError(const std::string &msg) {
 - (BOOL)registerAccountWithHost:(NSString *)host user:(NSString *)user password:(NSString *)password error:(NSError **)error {
     if (!_ep) { if (error) *error = PJError("Engine not started"); return NO; }
     try {
-        _calls.clear();                          // calls reference the account: drop them first
+        [self endAllCallsWithReason:@"Account replaced"];   // calls reference the account: end them first
         _acc.reset();
         _host = host.UTF8String;
         AccountConfig ac;
         ac.idUri = "sip:" + std::string(user.UTF8String) + "@" + _host;
         ac.regConfig.registrarUri = "sip:" + _host;
         ac.regConfig.timeoutSec = 300;
+        ac.regConfig.retryIntervalSec = 0;       // AppCore owns reconnect/backoff; no pjsua-internal retry
         ac.sipConfig.authCreds.push_back(AuthCredInfo("digest", "*", user.UTF8String, 0, password.UTF8String));
         _acc.reset(new BridgeAccount(self));
         _acc->create(ac);
@@ -125,7 +127,8 @@ static NSError *PJError(const std::string &msg) {
 
 - (void)unregisterAccount {
     // Destroying the account unregisters it; callbacks from a dying account are ignored (_acc is null).
-    try { _calls.clear(); _acc.reset(); } catch (...) {}
+    [self endAllCallsWithReason:@"Account removed"];
+    try { _acc.reset(); } catch (...) {}
 }
 
 - (nullable NSNumber *)dial:(NSString *)number error:(NSError **)error {
@@ -138,6 +141,10 @@ static NSError *PJError(const std::string &msg) {
         call->makeCall("sip:" + std::string(clean.UTF8String) + "@" + _host, prm);
         int id = call->getId();
         _calls[id] = std::move(call);
+        // pjsua2 cannot route callbacks fired inside makeCall (the Call is not yet bound to its pjsua call),
+        // so deliver the current state once now; this also reports an immediately failed call as "ended"
+        // and schedules its deferred erase.
+        [self handleCallState:id];
         return @(id);
     } catch (Error &e) {
         if (error) *error = PJError(e.info());
@@ -198,6 +205,9 @@ static NSError *PJError(const std::string &msg) {
 
 - (void)applyMuteToCapture {
     if (!_ep) return;
+    // pjsua2 naming is inverted relative to pjsua: AudioMedia::adjustTxLevel() maps to pjsua_conf_adjust_rx_level()
+    // (signal received FROM this port INTO the bridge), which is the microphone direction. Verified in the
+    // pjsua2 header docs and in the linked media.o (adjustTxLevel -> _pjsua_conf_adjust_rx_level).
     try { _ep->audDevManager().getCaptureDevMedia().adjustTxLevel(_muted ? 0.0f : 1.0f); } catch (...) {}
 }
 
@@ -206,9 +216,23 @@ static NSError *PJError(const std::string &msg) {
     try { it->second->dialDtmf(std::string(digits.UTF8String)); } catch (...) {}
 }
 
+/// Hangs up every live call and tells the delegate each one ended, so no call is dropped silently.
+- (void)endAllCallsWithReason:(NSString *)reason {
+    std::map<int, std::unique_ptr<BridgeCall>> calls;
+    calls.swap(_calls);                          // callbacks fired by hangup find nothing: we report once, below
+    for (auto &entry : calls) {
+        bool alreadyEnded = false;
+        try { alreadyEnded = entry.second->getInfo().state == PJSIP_INV_STATE_DISCONNECTED; } catch (...) {}
+        if (!alreadyEnded) {
+            try { CallOpParam prm; prm.statusCode = PJSIP_SC_DECLINE; entry.second->hangup(prm); } catch (...) {}
+            [self.delegate callStateChanged:entry.first state:@"ended" statusCode:487 reason:reason];
+        }
+    }
+}
+
 - (void)shutdown {
     [_timer invalidate]; _timer = nil;
-    _calls.clear(); _acc.reset();
+    [self endAllCallsWithReason:@"Engine shut down"]; _acc.reset();
     if (_ep) { try { _ep->libDestroy(); } catch (...) {} _ep.reset(); }
 }
 @end

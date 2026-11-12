@@ -70,16 +70,34 @@ public final class PJSIPEngine: NSObject, SIPEngine, PJBridgeDelegate {
     public nonisolated func registrationChanged(_ statusCode: Int, reason: String) {
         MainActor.assumeIsolated {
             if pending != nil {
-                switch statusCode {
-                case 200..<300: resolve(.success(()))
-                case 401, 403: resolve(.failure(SIPError.authFailed))
-                case 300...: resolve(.failure(SIPError.failed("\(statusCode) \(reason)")))
-                default: break
+                switch Self.pendingOutcome(statusCode: statusCode, reason: reason) {
+                case .success?: resolve(.success(()))
+                case .failure(let e)?: resolve(.failure(e))
+                case nil: break
                 }
-            } else if statusCode >= 200 {
-                continuation.yield(.registration(statusCode < 300 ? .registered : .failed(code: statusCode, reason: reason)))
+            } else if let ev = Self.registrationEvent(statusCode: statusCode, reason: reason) {
+                // 401/403 arrive here as .failed(code:); AppCore maps them to .authFailed.
+                continuation.yield(ev)
             }
         }
+    }
+
+    enum PendingOutcome: Equatable { case success, failure(SIPError) }
+
+    /// Result for a pending register() call; nil = not final yet.
+    nonisolated static func pendingOutcome(statusCode: Int, reason: String) -> PendingOutcome? {
+        switch statusCode {
+        case 200..<300: return .success
+        case 401, 403: return .failure(.authFailed)
+        case 300...: return .failure(.failed("\(statusCode) \(reason)"))
+        default: return nil
+        }
+    }
+
+    /// Event for a registration change when no register() is pending; nil = not final yet.
+    nonisolated static func registrationEvent(statusCode: Int, reason: String) -> SIPEvent? {
+        guard statusCode >= 200 else { return nil }
+        return .registration(statusCode < 300 ? .registered : .failed(code: statusCode, reason: reason))
     }
     public nonisolated func incomingCall(_ callId: Int, from remote: String) {
         MainActor.assumeIsolated { continuation.yield(.incomingCall(id: callId, remote: Self.userPart(of: remote))) }
