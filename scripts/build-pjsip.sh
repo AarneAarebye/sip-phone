@@ -7,8 +7,16 @@ WORK="$ROOT/build/pjsip"
 OUT="$ROOT/Packages/PhoneKit/Frameworks/PJSIP.xcframework"
 mkdir -p "$WORK"; cd "$WORK"
 
+# SHA-256 of the GitHub tag tarball for $VERSION (computed from two independent downloads, 2026-11-12).
+PJ_SHA256=b744544e5028d09d8c2f774d135e0f543930028c04580faa00590b78ee335973
+
 if [ ! -f pj.tgz ]; then
-  curl -fL -o pj.tgz "https://github.com/pjsip/pjproject/archive/refs/tags/$VERSION.tar.gz"
+  curl -fL -o pj.tgz.part "https://github.com/pjsip/pjproject/archive/refs/tags/$VERSION.tar.gz"
+  mv pj.tgz.part pj.tgz
+fi
+if ! echo "$PJ_SHA256  pj.tgz" | shasum -a 256 -c -; then
+  echo "error: pj.tgz does not match the pinned SHA-256; delete $WORK/pj.tgz and retry, or check the download" >&2
+  exit 1
 fi
 
 build_arch() {   # $1 = arm64 | x86_64 ; leaves $WORK/libpjsip-$1.a
