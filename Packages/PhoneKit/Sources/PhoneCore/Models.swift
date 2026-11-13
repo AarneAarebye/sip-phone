@@ -75,6 +75,28 @@ public enum PhoneBooks {
     public static func filter(_ contacts: [Contact], bookID: String?, query: String) -> [Contact] {
         contacts.filter { c in (bookID == nil || c.bookID == bookID) && ContactFilter.matches(c, query) }
     }
+
+    /// The books actually selected: stored ids that still exist and are not switched off.
+    /// nil = all books (nothing stored, or none of the stored ids is valid any more).
+    public static func effectiveSelection(stored: [String], books: [PhoneBookSummary], disabled: [String]) -> Set<String>? {
+        let valid = Set(books.map(\.id)).subtracting(disabled)
+        let chosen = Set(stored).intersection(valid)
+        return chosen.isEmpty ? nil : chosen
+    }
+
+    /// Set selection (nil = all books) combined with the text search.
+    public static func filter(_ contacts: [Contact], bookIDs: Set<String>?, query: String) -> [Contact] {
+        contacts.filter { c in
+            (bookIDs.map { ids in c.bookID.map(ids.contains) ?? false } ?? true) && ContactFilter.matches(c, query)
+        }
+    }
+
+    /// Toggles one book in the selection, starting from the effective one; the result is in book order.
+    public static func toggled(_ id: String, effective: Set<String>?, books: [PhoneBookSummary]) -> [String] {
+        var set = effective ?? []
+        if set.contains(id) { set.remove(id) } else { set.insert(id) }
+        return books.map(\.id).filter(set.contains)
+    }
 }
 
 public enum CallRecordType: Equatable, Sendable { case incoming, missed, outgoing, rejected }

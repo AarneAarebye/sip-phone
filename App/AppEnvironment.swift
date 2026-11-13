@@ -92,6 +92,9 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
                        },
                        phoneBookFailureDetail: { book.failureDetail })
         coreRef.core = core
+        core.persistPhoneBookSelection = { ids in
+            var s = store.load(); s.selectedPhoneBooks = ids; store.save(s)
+        }
     }
 
     private final class CoreRef { weak var core: AppCore? }
@@ -159,6 +162,9 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
             do { try secrets.set(v, for: key) }
             catch { return ApplyResult(saveError: "Could not save \(label) to the Keychain: \(error.localizedDescription)") }
         }
+        // The Contacts selection is changed outside Settings; never overwrite it with this window's copy.
+        var s = s
+        s.selectedPhoneBooks = core.settings.selectedPhoneBooks
         settingsStore.save(s)
         core.updateSettings(s)
         await core.retry()

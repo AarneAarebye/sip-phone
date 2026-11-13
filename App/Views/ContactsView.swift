@@ -8,15 +8,21 @@ struct ContactsView: View {
     let core: AppCore
     @State private var query = ""
 
-    @State private var selectedBook: String?   // nil = all phone books
-
     private var enabledBooks: [PhoneBookSummary] {
         core.phoneBooks.filter { !core.settings.disabledPhoneBooks.contains($0.id) }
     }
-    /// The selection, or nil when that book vanished or was switched off.
-    private var activeBook: String? { enabledBooks.contains { $0.id == selectedBook } ? selectedBook : nil }
+    /// nil = all enabled books.
+    private var selection: Set<String>? {
+        PhoneBooks.effectiveSelection(stored: core.settings.selectedPhoneBooks, books: core.phoneBooks,
+                                      disabled: core.settings.disabledPhoneBooks)
+    }
     private var filtered: [Contact] {
-        PhoneBooks.filter(core.visibleContacts, bookID: activeBook, query: query)
+        PhoneBooks.filter(core.visibleContacts, bookIDs: selection, query: query)
+    }
+    private var bookLabel: String {
+        guard let sel = selection else { return "All phone books" }
+        if sel.count == 1, let b = enabledBooks.first(where: { sel.contains($0.id) }) { return b.name }
+        return "\(sel.count) phone books"
     }
     private var allOff: Bool { !core.phoneBooks.isEmpty && enabledBooks.isEmpty }
     var body: some View {
@@ -25,10 +31,19 @@ struct ContactsView: View {
                 TextField("Search or type a number", text: $query).textFieldStyle(.roundedBorder)
                     .onSubmit { if filtered.isEmpty { Microphone.dial(query, core: core) } }
                 if enabledBooks.count >= 2 {
-                    Picker("Phone book", selection: Binding(get: { activeBook }, set: { selectedBook = $0 })) {
-                        Text("All phone books").tag(String?.none)
-                        ForEach(enabledBooks) { Text($0.name).tag(Optional($0.id)) }
-                    }.labelsHidden().fixedSize()
+                    Menu(bookLabel) {
+                        Button { core.setSelectedPhoneBooks([]) } label: {
+                            if selection == nil { Label("All phone books", systemImage: "checkmark") } else { Text("All phone books") }
+                        }
+                        Divider()
+                        ForEach(enabledBooks) { book in
+                            Button {
+                                core.setSelectedPhoneBooks(PhoneBooks.toggled(book.id, effective: selection, books: core.phoneBooks))
+                            } label: {
+                                if selection?.contains(book.id) == true { Label(book.name, systemImage: "checkmark") } else { Text(book.name) }
+                            }
+                        }
+                    }.fixedSize()
                 }
             }.padding(.horizontal, 8)
             if allOff {

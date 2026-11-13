@@ -56,11 +56,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var homeNetworkCIDR = ""
     /// Media (RTP) address advertised in calls; applies from the next (re)registration.
     public var mediaAddressMode: MediaAddressMode = .automatic
+    /// Ids of the phone books shown in Contacts; empty = all enabled books. Changed in Contacts, not in Settings.
+    public var selectedPhoneBooks: [String] = []
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case disabledPhoneBooks, fritzHost, sipUser, tr064User, countryCode, areaCode, keepAwakeOnPower, launchAtLogin, dtmfMethod
-        case splitTunnel, homeNetworkCIDR, mediaAddressMode
+        case splitTunnel, homeNetworkCIDR, mediaAddressMode, selectedPhoneBooks
     }
 
     /// Tolerant: a missing (older stored settings) or unknown value (including the removed "both") keeps the default for that field only.
@@ -82,6 +84,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         splitTunnel = value(.splitTunnel, d.splitTunnel)
         homeNetworkCIDR = value(.homeNetworkCIDR, d.homeNetworkCIDR)
         mediaAddressMode = value(.mediaAddressMode, d.mediaAddressMode)
+        selectedPhoneBooks = value(.selectedPhoneBooks, d.selectedPhoneBooks)
     }
 }
 

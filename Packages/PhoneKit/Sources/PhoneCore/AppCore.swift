@@ -652,6 +652,13 @@ public final class AppCore {
 
     // MARK: Settings and power
 
+    /// Persists the Contacts selection without touching registration; set by the app (writes to the SettingsStore).
+    public var persistPhoneBookSelection: (([String]) -> Void)?
+    public func setSelectedPhoneBooks(_ ids: [String]) {
+        guard ids != settings.selectedPhoneBooks else { return }
+        settings.selectedPhoneBooks = ids
+        persistPhoneBookSelection?(ids)
+    }
     public func updateSettings(_ s: AppSettings) { settings = s; rebuildIndex(); applyPower() }
     public func powerSourceChanged(onAC: Bool) { self.onAC = onAC; applyPower() }
     private func applyPower() { power.setPreventSleep(onAC && settings.keepAwakeOnPower) }

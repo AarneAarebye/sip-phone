@@ -62,6 +62,46 @@ final class PhoneBookSelectionTests: XCTestCase {
     }
 }
 
+final class PhoneBookMultiSelectTests: XCTestCase {
+    private let books = [PhoneBookSummary(id: "0", name: "A", contactCount: 1), PhoneBookSummary(id: "3", name: "B", contactCount: 1),
+                         PhoneBookSummary(id: "7", name: "C", contactCount: 1)]
+    private let sample = [
+        contact("0-1", "Anna", book: "A", bookID: "0"), contact("3-1", "Bob", book: "B", bookID: "3"),
+        contact("7-1", "Dee", book: "C", bookID: "7"), contact("x", "Loose", book: nil),
+    ]
+    private func eff(_ s: [String], off: [String] = []) -> Set<String>? {
+        PhoneBooks.effectiveSelection(stored: s, books: books, disabled: off)
+    }
+    func testEffectiveSelection() {
+        XCTAssertNil(eff([]))
+        XCTAssertEqual(eff(["3"]), ["3"])
+        XCTAssertEqual(eff(["0", "7"]), ["0", "7"])
+        XCTAssertEqual(eff(["0", "99"]), ["0"])            // vanished id ignored
+        XCTAssertEqual(eff(["0", "3"], off: ["3"]), ["0"]) // switched-off id ignored
+        XCTAssertNil(eff(["99"]))
+        XCTAssertNil(eff(["3"], off: ["3"]))               // all invalid -> all
+    }
+    func testFilterBySet() {
+        XCTAssertEqual(PhoneBooks.filter(sample, bookIDs: nil, query: "").count, 4)
+        XCTAssertEqual(PhoneBooks.filter(sample, bookIDs: ["0", "7"], query: "").map(\.name), ["Anna", "Dee"])
+        XCTAssertEqual(PhoneBooks.filter(sample, bookIDs: ["0", "7"], query: "dee").map(\.name), ["Dee"])
+        XCTAssertEqual(PhoneBooks.filter(sample, bookIDs: ["3"], query: "anna").count, 0)
+    }
+    func testToggled() {
+        XCTAssertEqual(PhoneBooks.toggled("3", effective: nil, books: books), ["3"])
+        XCTAssertEqual(PhoneBooks.toggled("0", effective: ["3"], books: books), ["0", "3"])
+        XCTAssertEqual(PhoneBooks.toggled("3", effective: ["3"], books: books), [])
+    }
+    func testSettingsRoundTripAndOldJSON() throws {
+        XCTAssertEqual(AppSettings().selectedPhoneBooks, [])
+        var s = AppSettings(); s.selectedPhoneBooks = ["0", "7"]
+        XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(s)).selectedPhoneBooks, ["0", "7"])
+        let old = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"sipUser":"1","disabledPhoneBooks":["3"]}"#.utf8))
+        XCTAssertEqual(old.selectedPhoneBooks, [])
+        XCTAssertEqual(old.disabledPhoneBooks, ["3"])
+    }
+}
+
 @MainActor final class PhoneBookCoreTests: XCTestCase {
     private func rig() async -> Rig {
         let r = makeRig(reach: [true])
@@ -104,5 +144,14 @@ final class PhoneBookSelectionTests: XCTestCase {
         XCTAssertEqual(r.core.settings.disabledPhoneBooks, ["2"])
         XCTAssertEqual(r.core.visibleContacts.map(\.name), ["Erika", "New"])
         XCTAssertEqual(ring(r, "0305555"), "New")
+    }
+    func testSetSelectedPhoneBooksPersistsViaHook() async {
+        let r = await rig()
+        var saved: [[String]] = []
+        r.core.persistPhoneBookSelection = { saved.append($0) }
+        r.core.setSelectedPhoneBooks(["2"])
+        r.core.setSelectedPhoneBooks(["2"])
+        XCTAssertEqual(r.core.settings.selectedPhoneBooks, ["2"])
+        XCTAssertEqual(saved, [["2"]])
     }
 }
