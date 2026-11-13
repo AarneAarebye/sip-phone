@@ -101,7 +101,7 @@ For notifications, open System Settings > Notifications > SIP Phone and set Show
 
 **Dial from the Keypad tab.** Type or tap a number and click Call. For international numbers, long-press the 0 key or click the + button to enter a leading +. Both only work as the first character.
 
-**Dial from Contacts.** The search box matches names, numbers and phone book names. Each contact shows which phone book it comes from. With two or more phone books switched on, a menu next to the search box ("All phone books" or one book) narrows the list; it combines with the search. Click a number to call it. You can also type a number into the search box and press Return if nothing matches.
+**Dial from Contacts.** The search box matches names, numbers and phone book names. Each contact shows which phone book it comes from. With two or more phone books switched on, a menu next to the search box narrows the list: tick one or several phone books, or choose "All phone books" to clear the selection. The menu shows "All phone books", the book's name or "N phone books". The selection is remembered when you quit the app, and combines with the search. Click a number to call it. You can also type a number into the search box and press Return if nothing matches.
 
 **Dial from History.** Click the phone button on any entry.
 
