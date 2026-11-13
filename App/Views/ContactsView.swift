@@ -32,16 +32,15 @@ struct ContactsView: View {
                     .onSubmit { if filtered.isEmpty { Microphone.dial(query, core: core) } }
                 if enabledBooks.count >= 2 {
                     Menu(bookLabel) {
-                        Button { core.setSelectedPhoneBooks([]) } label: {
-                            if selection == nil { Label("All phone books", systemImage: "checkmark") } else { Text("All phone books") }
-                        }
+                        // Toggles, not Buttons: a menu draws the native checkmark for a Toggle, but drops the image of a Button label.
+                        Toggle("All phone books", isOn: Binding(
+                            get: { selection == nil },
+                            set: { _ in core.setSelectedPhoneBooks([]) }))
                         Divider()
                         ForEach(enabledBooks) { book in
-                            Button {
-                                core.setSelectedPhoneBooks(PhoneBooks.toggled(book.id, effective: selection, books: core.phoneBooks))
-                            } label: {
-                                if selection?.contains(book.id) == true { Label(book.name, systemImage: "checkmark") } else { Text(book.name) }
-                            }
+                            Toggle(book.name, isOn: Binding(
+                                get: { selection?.contains(book.id) == true },
+                                set: { _ in core.setSelectedPhoneBooks(PhoneBooks.toggled(book.id, effective: selection, books: core.phoneBooks)) }))
                         }
                     }.fixedSize()
                 }
