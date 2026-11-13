@@ -73,3 +73,9 @@ The app logs every call step (category `call`, without numbers) and the audio ad
 ```
 
 Increase `--last` if the call was longer ago. The output contains no phone numbers, passwords or keys; public IP addresses appear as `<public>`.
+
+## Live results, 2026-11-13 (MacBook Pro, FRITZ!Box 6591 Cable, FRITZ!OS 8.25, build 0.3.1/0.3.2)
+
+Passed: 38 (automatic VPN start on the guest network), 39 (automatic stop within seconds of joining the home Wi-Fi), 40 (call survives the move home, the VPN stops 3 s after hang-up, one short audio dip), 41 (flapping: one stop per visit away, ends off at home), 42 (manual start from outside the app is refused and leaves the network untouched), 43 (call controls and the "Already in a call" message), 45 (media counters over the VPN, audio both ways), 46 (selection with checkmarks), 18 and 20 (sleep and wake: the app reconnects within about 1 s, the keep-awake assertion returns), 15 (microphone denied: the dial shows the message and no call starts). 44 is covered by unit tests (see its entry).
+
+Not yet run: sleep/wake while away from home with the VPN up, the microphone recovery step after allowing access again (15, last step), a clean install of the DMG on a Mac that never ran a development build.
