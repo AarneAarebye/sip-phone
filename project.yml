@@ -62,8 +62,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: "SIP Phone"
-        CFBundleShortVersionString: "0.4.0"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "0.4.1"
+        CFBundleVersion: "9"
         LSUIElement: true
         NSMicrophoneUsageDescription: "Needed to make phone calls."
         NSHumanReadableCopyright: "Copyright © 2026 Aarne Aarebye"
@@ -100,8 +100,8 @@ targets:
       path: PacketTunnel/Info.plist
       properties:
         CFBundleDisplayName: SIP Phone VPN
-        CFBundleShortVersionString: "0.4.0"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "0.4.1"
+        CFBundleVersion: "9"
         CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
         NSSystemExtensionUsageDescription: "Connects SIP Phone to your FRITZ!Box over WireGuard when you are away from home."
         NetworkExtension:
