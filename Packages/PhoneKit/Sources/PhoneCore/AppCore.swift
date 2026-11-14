@@ -276,6 +276,59 @@ public final class AppCore {
         }
     }
 
+    // MARK: Phone book editing
+
+    /// Books whose backup was offered in this session (the first write to a book asks for a CSV backup).
+    @ObservationIgnored private var backedUpBooks = Set<String>()
+    public private(set) var editError: String?
+    public var canEditPhoneBooks: Bool { phoneBook is PhoneBookEditing }
+    public func needsBackup(bookID: String) -> Bool { !backedUpBooks.contains(bookID) }
+    public func markBackedUp(bookID: String) { backedUpBooks.insert(bookID) }
+    public func clearEditError() { editError = nil }
+    /// All contacts of one book, for the CSV backup.
+    public func contacts(inBook id: String) -> [Contact] { contacts.filter { $0.bookID == id } }
+
+    /// Runs one write, then reloads the phone books. Returns true on success; failures set `editError`
+    /// (never includes names or numbers). A failed write still refreshes, since a partial move may have changed a book.
+    @discardableResult
+    private func performEdit(_ op: (PhoneBookEditor) async throws -> Void) async -> Bool {
+        guard let service = phoneBook as? PhoneBookEditing else { editError = PhoneBookEditError.notAvailable.localizedDescription; return false }
+        do {
+            try await op(PhoneBookEditor(service))
+            editError = nil
+            await refreshPhoneBook()
+            return true
+        } catch {
+            editError = error.localizedDescription
+            if case PhoneBookEditError.copiedButNotRemoved = error { await refreshPhoneBook() }
+            return false
+        }
+    }
+
+    public func addContact(bookID: String, draft: ContactDraft) async -> Bool {
+        await performEdit { try await $0.create(bookID: bookID, draft: draft) }
+    }
+    public func updateContact(_ contact: Contact, draft: ContactDraft) async -> Bool {
+        guard TransferTargets.canEdit(contact), let b = contact.bookID, let e = contact.entryID else {
+            editError = PhoneBookEditError.readOnly.localizedDescription; return false
+        }
+        return await performEdit { try await $0.update(bookID: b, entryID: e, draft: draft) }
+    }
+    public func deleteContact(_ contact: Contact) async -> Bool {
+        guard TransferTargets.canEdit(contact), let b = contact.bookID, let e = contact.entryID else {
+            editError = PhoneBookEditError.readOnly.localizedDescription; return false
+        }
+        return await performEdit { try await $0.delete(bookID: b, entryID: e) }
+    }
+    public func transferContact(_ contact: Contact, toBook target: String, mode: TransferMode) async -> Bool {
+        guard let b = contact.bookID, let e = contact.entryID, !e.isEmpty,
+              (mode == .copy || TransferTargets.canEdit(contact)),
+              phoneBooks.first(where: { $0.id == target })?.readOnly == false else {
+            editError = PhoneBookEditError.readOnly.localizedDescription; return false
+        }
+        return await performEdit { try await $0.transfer(from: b, entryID: e, to: target, mode: mode) }
+    }
+
     public func refreshHistory() async { if let h = try? await phoneBook.loadCallList() { history = h } }
 
     private func rebuildIndex() {

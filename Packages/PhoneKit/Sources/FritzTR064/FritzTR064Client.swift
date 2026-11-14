@@ -4,7 +4,7 @@
 import Foundation
 import PhoneCore
 
-public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
+public final class FritzTR064Client: PhoneBookService, PhoneBookEditing, @unchecked Sendable {
     public static let defaultPort = 49443
     private let base: URL
     private let transport: HTTPTransport
@@ -45,21 +45,64 @@ public final class FritzTR064Client: PhoneBookService, @unchecked Sendable {
 
     public func loadContacts() async throws -> [Contact] {
         let list = try await call("GetPhonebookList")["NewPhonebookList"] ?? "0"
-        var books: [(id: String, name: String, contacts: [Contact])] = []
+        var books: [(id: String, name: String, contacts: [Contact], readOnly: Bool)] = []
         for id in list.split(separator: ",").map({ String($0).trimmingCharacters(in: .whitespaces) }) where !id.isEmpty {
             let reply = try await call("GetPhonebook", [("NewPhonebookID", id)])
             guard let s = reply["NewPhonebookURL"], let url = Self.rebase(s, onto: base) else { throw FritzError.missingField("NewPhonebookURL") }
             let contacts = try PhoneBookParser.parse(try await transport.send(URLRequest(url: url)))
-            books.append((id, contacts.lazy.compactMap(\.phoneBook).first ?? "Phone book \(id)", contacts))
+            // A non-empty extra id means the book comes from an online provider: the box does not store it.
+            let readOnly = !(reply["NewPhonebookExtraID"] ?? "").isEmpty
+            books.append((id, contacts.lazy.compactMap(\.phoneBook).first ?? "Phone book \(id)", contacts, readOnly))
         }
         // Books sharing a name get their id appended, e.g. "Telefonbuch (1)", so they stay distinguishable.
         let counts = Dictionary(books.map { ($0.name, 1) }, uniquingKeysWith: +)
         var all: [Contact] = []
         for book in books {
             let display = counts[book.name, default: 0] > 1 ? "\(book.name) (\(book.id))" : book.name
-            all += book.contacts.map { Contact(id: "\(book.id)-\($0.id)", name: $0.name, numbers: $0.numbers, phoneBook: display, phoneBookID: book.id) }
+            all += book.contacts.map { Contact(id: "\(book.id)-\($0.id)", name: $0.name, numbers: $0.numbers, phoneBook: display, phoneBookID: book.id,
+                                                                                                    entryID: $0.entryID, phoneBookReadOnly: book.readOnly) }
         }
         return all
+    }
+
+    // MARK: Phone book editing (X_AVM-DE_OnTel)
+
+    /// Write calls: the box answers 401/500 or a SOAP fault when the TR-064 user lacks the phone-book right.
+    private func writeCall(_ action: String, _ args: [(String, String)]) async throws -> [String: String] {
+        do { return try await call(action, args) }
+        catch let e as FritzError {
+            switch e {
+            case .unauthorized, .http(401), .http(500), .http(403), .fault:
+                throw PhoneBookEditError.refused(Self.refusalText(e))
+            default: throw e
+            }
+        }
+    }
+
+    static func refusalText(_ e: FritzError) -> String {
+        var s = "The FRITZ!Box refused the change. Check that the TR-064 user has the right to edit "
+            + "phone books (FRITZ!Box > System > FRITZ!Box users > the user > \"FRITZ!Box settings, "
+            + "VoIP, phone and smart home\" / contacts) and that the phone book is not read-only."
+        if case .fault(let code, _) = e { s += " (error \(code))" }
+        else if case .http(let c) = e { s += " (HTTP \(c))" }
+        return s
+    }
+
+    public func entryData(bookID: String, entryID: String) async throws -> String {
+        let r = try await call("GetPhonebookEntry", [("NewPhonebookID", bookID), ("NewPhonebookEntryID", entryID)])
+        guard let d = r["NewPhonebookEntryData"], !d.isEmpty else { throw FritzError.missingField("NewPhonebookEntryData") }
+        return d
+    }
+
+    @discardableResult
+    public func setEntry(bookID: String, entryID: String, data: String) async throws -> String {
+        let r = try await writeCall("SetPhonebookEntry", [("NewPhonebookID", bookID), ("NewPhonebookEntryID", entryID),
+                                                          ("NewPhonebookEntryData", data)])
+        return r["NewPhonebookEntryUniqueID"] ?? entryID
+    }
+
+    public func deleteEntry(bookID: String, entryID: String) async throws {
+        _ = try await writeCall("DeletePhonebookEntry", [("NewPhonebookID", bookID), ("NewPhonebookEntryID", entryID)])
     }
 
     public func loadCallList() async throws -> [CallRecord] {

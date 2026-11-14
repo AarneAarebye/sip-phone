@@ -19,7 +19,7 @@ final class UserDefaultsPinStore: PinStore, @unchecked Sendable {
 
 /// Late-bound phone book service so changing settings does not require rebuilding AppCore.
 /// Keeps one client (and TLS session) per credentials set; rebuilt only when they change.
-final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
+final class LivePhoneBook: PhoneBookService, PhoneBookEditing, @unchecked Sendable {
     private let credentials: @Sendable () -> (host: String, user: String, password: String)?
     private let pins: PinStore
     private let lock = NSLock()
@@ -59,6 +59,15 @@ final class LivePhoneBook: PhoneBookService, @unchecked Sendable {
     }
     func loadContacts() async throws -> [Contact] { try await current().loadContacts() }
     func loadCallList() async throws -> [CallRecord] { try await current().loadCallList() }
+    func entryData(bookID: String, entryID: String) async throws -> String {
+        try await current().entryData(bookID: bookID, entryID: entryID)
+    }
+    func setEntry(bookID: String, entryID: String, data: String) async throws -> String {
+        try await current().setEntry(bookID: bookID, entryID: entryID, data: data)
+    }
+    func deleteEntry(bookID: String, entryID: String) async throws {
+        try await current().deleteEntry(bookID: bookID, entryID: entryID)
+    }
 }
 
 @MainActor final class AppEnvironment {
