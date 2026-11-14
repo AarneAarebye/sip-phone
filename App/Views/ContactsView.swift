@@ -203,12 +203,13 @@ struct ContactsView: View {
 
     // MARK: Export
 
-    private func exportSelection() { _ = saveCSV(exportContacts, fileName: ContactCSV.exportFileName()) }
+    private func exportSelection() { _ = saveCSV(exportContacts, fileName: ContactCSV.exportFileName(), restorePopover: false) }
 
     /// Shared by the export button and the backup before the first write. Returns false when cancelled or failed.
-    private func saveCSV(_ contacts: [Contact], fileName: String) -> Bool {
-        guard let url = chooseCSVSaveURL(fileName: fileName) else { return false }
-        do { try ContactCSV.build(contacts).write(to: url, atomically: true, encoding: .utf8); return true }
+    private func saveCSV(_ contacts: [Contact], fileName: String, restorePopover: Bool = true) -> Bool {
+        let csv = ContactCSV.build(contacts)
+        guard let url = chooseCSVSaveURL(fileName: fileName, restorePopover: restorePopover) else { return false }
+        do { try csv.write(to: url, atomically: true, encoding: .utf8); return true }
         catch {
             let fail = NSAlert()
             fail.messageText = "Export failed"; fail.informativeText = error.localizedDescription
