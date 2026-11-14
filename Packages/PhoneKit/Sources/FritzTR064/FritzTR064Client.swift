@@ -3,6 +3,7 @@
 
 import Foundation
 import PhoneCore
+import os
 
 public final class FritzTR064Client: PhoneBookService, PhoneBookEditing, @unchecked Sendable {
     public static let defaultPort = 49443
@@ -71,6 +72,7 @@ public final class FritzTR064Client: PhoneBookService, PhoneBookEditing, @unchec
     private func writeCall(_ action: String, _ args: [(String, String)]) async throws -> [String: String] {
         do { return try await call(action, args) }
         catch let e as FritzError {
+            if case .fault(let code, _) = e, code == "713" { throw PhoneBookEditError.entryNotFound }
             switch e {
             case .unauthorized, .http(401), .http(500), .http(403), .fault:
                 throw PhoneBookEditError.refused(Self.refusalText(e))
@@ -88,21 +90,58 @@ public final class FritzTR064Client: PhoneBookService, PhoneBookEditing, @unchec
         return s
     }
 
+    // Entry ids: the plain *Entry actions take a position index in the box's list (AVM TR-064 Contact SCPD,
+    // PhonebookEntryID), which shifts when entries are deleted. The app only knows the entry's `<uniqueid>`
+    // from the phone book XML, so every entry action here uses the *UID variants (since FRITZ!OS 7.0x).
+
+    private static let log = Logger(subsystem: "com.aarneaarebye.sipphone", category: "phonebook")
+
+    /// Logs action name, numeric ids and the fault code only: never names, numbers, credentials or XML.
+    private func logged(_ action: String, bookID: String, entryID: String?, _ args: [(String, String)],
+                        write: Bool) async throws -> [String: String] {
+        let idText = entryID.map { $0.isEmpty ? "(none)" : $0 } ?? "-"
+        do {
+            let r = write ? try await writeCall(action, args) : try await call(action, args)
+            Self.log.info("\(action, privacy: .public) book=\(bookID, privacy: .public) uid=\(idText, privacy: .public) ok")
+            return r
+        } catch {
+            var code = "-"
+            if case PhoneBookEditError.refused = error { code = "refused" }
+            if let f = error as? FritzError {
+                switch f { case .fault(let c, _): code = c; case .http(let h): code = "http\(h)"; default: code = "other" }
+            } else if case PhoneBookEditError.entryNotFound = error { code = "713" }
+            Self.log.error("\(action, privacy: .public) book=\(bookID, privacy: .public) uid=\(idText, privacy: .public) failed code=\(code, privacy: .public)")
+            throw error
+        }
+    }
+
+    /// 713 (SpecifiedArrayIndexInvalid) means the phone book id or entry id does not exist on the box.
+    private static func mapMissing(_ e: Error) -> Error {
+        if case FritzError.fault(let code, _) = e, code == "713" { return PhoneBookEditError.entryNotFound }
+        return e
+    }
+
     public func entryData(bookID: String, entryID: String) async throws -> String {
-        let r = try await call("GetPhonebookEntry", [("NewPhonebookID", bookID), ("NewPhonebookEntryID", entryID)])
-        guard let d = r["NewPhonebookEntryData"], !d.isEmpty else { throw FritzError.missingField("NewPhonebookEntryData") }
+        let r: [String: String]
+        do {
+            r = try await logged("GetPhonebookEntryUID", bookID: bookID, entryID: entryID,
+                                 [("NewPhonebookID", bookID), ("NewPhonebookEntryUniqueID", entryID)], write: false)
+        } catch { throw Self.mapMissing(error) }
+        guard let d = r["NewPhonebookEntryData"], !d.isEmpty else { throw PhoneBookEditError.entryNotFound }
         return d
     }
 
+    /// Empty `entryID` creates a new entry; otherwise `data` must carry `<uniqueid>` (see `PhoneBookEntryXML.merge`).
     @discardableResult
     public func setEntry(bookID: String, entryID: String, data: String) async throws -> String {
-        let r = try await writeCall("SetPhonebookEntry", [("NewPhonebookID", bookID), ("NewPhonebookEntryID", entryID),
-                                                          ("NewPhonebookEntryData", data)])
+        let r = try await logged("SetPhonebookEntryUID", bookID: bookID, entryID: entryID,
+                             [("NewPhonebookID", bookID), ("NewPhonebookEntryData", data)], write: true)
         return r["NewPhonebookEntryUniqueID"] ?? entryID
     }
 
     public func deleteEntry(bookID: String, entryID: String) async throws {
-        _ = try await writeCall("DeletePhonebookEntry", [("NewPhonebookID", bookID), ("NewPhonebookEntryID", entryID)])
+        _ = try await logged("DeletePhonebookEntryUID", bookID: bookID, entryID: entryID,
+                             [("NewPhonebookID", bookID), ("NewPhonebookEntryUniqueID", entryID)], write: true)
     }
 
     public func loadCallList() async throws -> [CallRecord] {

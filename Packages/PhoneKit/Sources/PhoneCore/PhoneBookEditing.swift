@@ -58,6 +58,8 @@ public enum PhoneBookEditError: Error, Equatable, LocalizedError {
     /// Copy succeeded but removing the original did not: the contact now exists in both books.
     case copiedButNotRemoved(String)
     case notAvailable
+    /// The box answered 713: the phone book or entry id is unknown (entry deleted elsewhere, or a stale id).
+    case entryNotFound
 
     public var errorDescription: String? {
         switch self {
@@ -68,6 +70,8 @@ public enum PhoneBookEditError: Error, Equatable, LocalizedError {
         case .copiedButNotRemoved(let m):
             return "The contact was copied, but the original could not be removed (\(m)). It now exists in both books; nothing was lost."
         case .notAvailable: return "Editing phone books is not available."
+        case .entryNotFound:
+            return "The FRITZ!Box no longer has this entry (error 713). Refresh the phone books and try again; nothing was changed."
         }
     }
 }
@@ -75,7 +79,7 @@ public enum PhoneBookEditError: Error, Equatable, LocalizedError {
 /// Raw access to the box's phone-book entries (X_AVM-DE_OnTel). Entry data is the `<contact>` XML.
 public protocol PhoneBookEditing: Sendable {
     func entryData(bookID: String, entryID: String) async throws -> String
-    /// Empty `entryID` creates a new entry. Returns the entry's id.
+    /// `entryID` is the entry's `<uniqueid>` (not a list position). Empty creates a new entry. Returns the unique id.
     @discardableResult
     func setEntry(bookID: String, entryID: String, data: String) async throws -> String
     func deleteEntry(bookID: String, entryID: String) async throws
@@ -98,7 +102,7 @@ public struct PhoneBookEditor: Sendable {
         if let e = draft.validationError { throw PhoneBookEditError.invalid(e) }
         guard !entryID.isEmpty else { throw PhoneBookEditError.noEntryID }
         let existing = try await service.entryData(bookID: bookID, entryID: entryID)
-        let merged = try PhoneBookEntryXML.merge(existing: existing, draft: draft.cleaned)
+        let merged = try PhoneBookEntryXML.merge(existing: existing, draft: draft.cleaned, uniqueID: entryID)
         try await service.setEntry(bookID: bookID, entryID: entryID, data: merged)
     }
 
@@ -164,7 +168,8 @@ public enum PhoneBookEntryXML {
     }
 
     /// Replaces realName and the telephony block of an existing record, keeping everything else.
-    public static func merge(existing: String, draft: ContactDraft) throws -> String {
+    /// With `uniqueID` the result carries exactly that `<uniqueid>`.
+    public static func merge(existing: String, draft: ContactDraft, uniqueID: String? = nil) throws -> String {
         let doc = try parse(existing)
         guard let contact = doc.rootElement(), contact.name == "contact" else { throw unreadable }
         let person: XMLElement
@@ -185,6 +190,11 @@ public enum PhoneBookEntryXML {
         }
         let at = contact.elements(forName: "person").first.map { $0.index + 1 } ?? 0
         contact.insertChild(tel, at: at)
+        // SetPhonebookEntryUID changes an existing entry only if the XML carries its <uniqueid>.
+        if let uniqueID, !uniqueID.isEmpty {
+            for e in contact.elements(forName: "uniqueid") { contact.removeChild(at: e.index) }
+            contact.addChild(XMLElement(name: "uniqueid", stringValue: uniqueID))
+        }
         return doc.xmlString(options: [.nodeCompactEmptyElement])
     }
 
