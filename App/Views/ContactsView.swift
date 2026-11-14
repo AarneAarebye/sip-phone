@@ -67,10 +67,7 @@ struct ContactsView: View {
                     }.lineLimit(1).truncationMode(.tail).frame(maxWidth: 190, alignment: .leading).fixedSize(horizontal: true, vertical: false)
                 }
                 Spacer(minLength: 0)
-                Button { exportSelection() } label: { Image(systemName: "square.and.arrow.up") }
-                    .accessibilityLabel("Export CSV…")
-                    .help("Export the contacts of the selected phone books as a CSV file")
-                    .disabled(exportContacts.isEmpty)
+                ExportCSVButton(help: "Export contacts of the selected phone books as CSV…", disabled: exportContacts.isEmpty) { exportSelection() }
                 if core.canEditPhoneBooks, !writableBooks.isEmpty {
                     if writableBooks.count == 1, let only = writableBooks.first {
                         Button { start { sheet = .add(only) } } label: { Image(systemName: "plus") }

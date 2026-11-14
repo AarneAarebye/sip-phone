@@ -35,11 +35,10 @@ struct HistoryView: View {
                         Button(title(p)) { let r = p.range(); from = r.from; to = r.to }
                     }
                 }.fixedSize()
-                Menu("Export") {
-                    Button("Export CSV…") { exportCSV() }.disabled(exportRows.isEmpty)
-                }.fixedSize()
                 Spacer(minLength: 0)
                 if filterActive { Button("Clear") { query = ""; from = nil; to = nil } }
+                ExportCSVButton(help: selection.isEmpty ? "Export filtered calls as CSV…" : "Export selected calls as CSV…",
+                                disabled: exportRows.isEmpty) { exportCSV() }
             }.padding(.horizontal, 12)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
