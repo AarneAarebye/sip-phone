@@ -219,6 +219,12 @@ public enum ContactCSV {
         return lines.joined(separator: "\r\n") + "\r\n"
     }
 
+    /// File name for an export of the selected book(s), independent of which books: sip-phone-contacts-YYYY-MM-DD.csv.
+    public static func exportFileName(now: Date = Date(), calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: now)
+        return String(format: "sip-phone-contacts-%04d-%02d-%02d.csv", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
     public static func defaultFileName(book: String, now: Date = Date(), calendar: Calendar = .current) -> String {
         let c = calendar.dateComponents([.year, .month, .day], from: now)
         let safe = String(book.map { $0.isLetter || $0.isNumber ? $0 : "-" })

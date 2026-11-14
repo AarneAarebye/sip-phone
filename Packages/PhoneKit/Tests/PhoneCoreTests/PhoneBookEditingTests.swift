@@ -167,4 +167,19 @@ final class PhoneBookEditingTests: XCTestCase {
         XCTAssertEqual(ContactCSV.defaultFileName(book: "Tele/fon 1", now: Date(timeIntervalSince1970: 0), calendar: cal),
                        "phonebook-backup-Tele-fon-1-1970-01-01.csv")
     }
+
+    func testExportFileName() {
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+        XCTAssertEqual(ContactCSV.exportFileName(now: Date(timeIntervalSince1970: 86400 * 365), calendar: cal),
+                       "sip-phone-contacts-1971-01-01.csv")
+    }
+
+    func testMultiBookExportRespectsSelectionAndIgnoresSearch() {
+        let cs = [Contact(id: "0-1", name: "A", numbers: [PhoneNumber(number: "1", type: "home")], phoneBook: "Tel", phoneBookID: "0"),
+                  Contact(id: "1-1", name: "B", numbers: [PhoneNumber(number: "2", type: "work")], phoneBook: "Lydia", phoneBookID: "1", phoneBookReadOnly: true),
+                  Contact(id: "2-1", name: "C", numbers: [PhoneNumber(number: "3", type: "work")], phoneBook: "Other", phoneBookID: "2")]
+        let picked = PhoneBooks.filter(cs, bookIDs: ["0", "1"], query: "")
+        let lines = ContactCSV.build(picked).components(separatedBy: "\r\n")
+        XCTAssertEqual(lines, ["Phone book,Name,Type,Number", "Tel,A,home,1", "Lydia,B,work,2", ""])
+    }
 }

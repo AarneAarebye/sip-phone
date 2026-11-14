@@ -32,6 +32,10 @@ struct ContactsView: View {
     private var filtered: [Contact] {
         PhoneBooks.filter(core.visibleContacts, bookIDs: selection, query: query)
     }
+    /// Everything in the selected books; the search text is ignored.
+    private var exportContacts: [Contact] {
+        PhoneBooks.filter(core.visibleContacts, bookIDs: selection, query: "")
+    }
     private var bookLabel: String {
         guard let sel = selection else { return "All phone books" }
         if sel.count == 1, let b = enabledBooks.first(where: { sel.contains($0.id) }) { return b.name }
@@ -61,6 +65,9 @@ struct ContactsView: View {
                         }
                     }.fixedSize()
                 }
+                Button { exportSelection() } label: { Label("Export CSV…", systemImage: "square.and.arrow.up") }
+                    .help("Export the contacts of the selected phone books as a CSV file")
+                    .disabled(exportContacts.isEmpty)
                 if core.canEditPhoneBooks, !writableBooks.isEmpty {
                     if writableBooks.count == 1, let only = writableBooks.first {
                         Button { start { sheet = .add(only) } } label: { Label("Add contact", systemImage: "plus") }
@@ -184,18 +191,27 @@ struct ContactsView: View {
         alert.addButton(withTitle: "Cancel")
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [.commaSeparatedText]
-            panel.nameFieldStringValue = ContactCSV.defaultFileName(book: bookName)
-            guard panel.runModal() == .OK, let url = panel.url else { return .cancel }
-            do { try ContactCSV.build(core.contacts(inBook: bookID)).write(to: url, atomically: true, encoding: .utf8); return .proceed }
-            catch {
-                let fail = NSAlert()
-                fail.messageText = "Backup failed"; fail.informativeText = error.localizedDescription
-                fail.runModal(); return .cancel
-            }
+            return saveCSV(core.contacts(inBook: bookID), fileName: ContactCSV.defaultFileName(book: bookName)) ? .proceed : .cancel
         case .alertSecondButtonReturn: return .proceed
         default: return .cancel
+        }
+    }
+
+    // MARK: Export
+
+    private func exportSelection() { _ = saveCSV(exportContacts, fileName: ContactCSV.exportFileName()) }
+
+    /// Shared by the export button and the backup before the first write. Returns false when cancelled or failed.
+    private func saveCSV(_ contacts: [Contact], fileName: String) -> Bool {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = fileName
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        do { try ContactCSV.build(contacts).write(to: url, atomically: true, encoding: .utf8); return true }
+        catch {
+            let fail = NSAlert()
+            fail.messageText = "Export failed"; fail.informativeText = error.localizedDescription
+            fail.runModal(); return false
         }
     }
 }
