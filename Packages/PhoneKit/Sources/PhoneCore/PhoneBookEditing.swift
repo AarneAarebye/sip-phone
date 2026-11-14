@@ -213,6 +213,20 @@ public enum PhoneBookEntryXML {
     }
 }
 
+/// Which phone books were already handled (backed up or declined) in this session. A book is marked only after the user
+/// chose "Back up" or "Continue without backup"; Cancel leaves it unprompted.
+public struct BackupSession: Equatable, Sendable {
+    private var done = Set<String>()
+    public init() {}
+    public func needsBackup(_ bookID: String) -> Bool { !bookID.isEmpty && !done.contains(bookID) }
+    public mutating func markBackedUp(_ bookID: String) { done.insert(bookID) }
+    /// The books of one write that still need the prompt, in order, without duplicates.
+    public func booksNeedingBackup(_ bookIDs: [String]) -> [String] {
+        var seen = Set<String>()
+        return bookIDs.filter { needsBackup($0) && seen.insert($0).inserted }
+    }
+}
+
 /// CSV backup of a phone book: one row per number (a contact without numbers gets one row).
 public enum ContactCSV {
     public static let header = ["Phone book", "Name", "Type", "Number"]

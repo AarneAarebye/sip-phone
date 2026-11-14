@@ -183,3 +183,24 @@ final class PhoneBookEditingTests: XCTestCase {
         XCTAssertEqual(lines, ["Phone book,Name,Type,Number", "Tel,A,home,1", "Lydia,B,work,2", ""])
     }
 }
+
+final class BackupSessionTests: XCTestCase {
+    func testFirstWriteNeedsBackupSecondDoesNot() {
+        var s = BackupSession()
+        XCTAssertTrue(s.needsBackup("0"))
+        s.markBackedUp("0")
+        XCTAssertFalse(s.needsBackup("0"))
+        XCTAssertTrue(s.needsBackup("3"), "another book is prompted separately")
+    }
+    func testCancelLeavesBookUnprompted() {
+        let s = BackupSession()   // Cancel never calls markBackedUp
+        XCTAssertTrue(s.needsBackup("0"))
+    }
+    func testEmptyBookIDNeverPrompts() { XCTAssertFalse(BackupSession().needsBackup("")) }
+    func testMoveAsksSourceThenTargetOnce() {
+        var s = BackupSession()
+        XCTAssertEqual(s.booksNeedingBackup(["0", "3"]), ["0", "3"])
+        s.markBackedUp("0")
+        XCTAssertEqual(s.booksNeedingBackup(["0", "3", "3"]), ["3"])
+    }
+}

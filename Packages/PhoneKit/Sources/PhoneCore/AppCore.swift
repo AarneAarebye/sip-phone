@@ -279,11 +279,12 @@ public final class AppCore {
     // MARK: Phone book editing
 
     /// Books whose backup was offered in this session (the first write to a book asks for a CSV backup).
-    @ObservationIgnored private var backedUpBooks = Set<String>()
+    @ObservationIgnored private var backupSession = BackupSession()
     public private(set) var editError: String?
     public var canEditPhoneBooks: Bool { phoneBook is PhoneBookEditing }
-    public func needsBackup(bookID: String) -> Bool { !backedUpBooks.contains(bookID) }
-    public func markBackedUp(bookID: String) { backedUpBooks.insert(bookID) }
+    public func needsBackup(bookID: String) -> Bool { backupSession.needsBackup(bookID) }
+    public func booksNeedingBackup(_ bookIDs: [String]) -> [String] { backupSession.booksNeedingBackup(bookIDs) }
+    public func markBackedUp(bookID: String) { backupSession.markBackedUp(bookID) }
     public func clearEditError() { editError = nil }
     /// All contacts of one book, for the CSV backup.
     public func contacts(inBook id: String) -> [Contact] { contacts.filter { $0.bookID == id } }

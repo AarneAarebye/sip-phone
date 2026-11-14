@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 
 /// The menu-bar popover window(s) of the MenuBarExtra (not the status item's own window, not panels).
 @MainActor
-private func popoverWindows() -> [NSWindow] {
+func popoverWindows() -> [NSWindow] {
     NSApp.windows.filter { w in
         guard w.isVisible, !(w is NSSavePanel) else { return false }
         let name = String(describing: type(of: w))

@@ -2,6 +2,7 @@
 // Copyright © 2026 Aarne Aarebye
 
 import SwiftUI
+import os
 import AppKit
 import UniformTypeIdentifiers
 import PhoneCore
@@ -129,7 +130,7 @@ struct ContactsView: View {
                             isPresented: Binding(get: { transfer != nil }, set: { if !$0 { transfer = nil } }), presenting: transfer) { t in
             Button(t.mode == .move ? "Move to \(t.target.name)" : "Copy to \(t.target.name)") {
                 Task {
-                    await write(bookID: t.contact.bookID ?? "", bookName: t.contact.phoneBook ?? "") {
+                    await write(bookID: t.contact.bookID ?? "", bookName: t.contact.phoneBook ?? "", alsoBook: (t.target.id, t.target.name)) {
                         await core.transferContact(t.contact, toBook: t.target.id, mode: t.mode)
                     }
                 }
@@ -166,12 +167,17 @@ struct ContactsView: View {
 
     // MARK: Writing with backup
 
-    /// Offers a CSV backup before the first write to a book in this session, then runs `op`; closes the sheet on success.
-    private func write(bookID: String, bookName: String, _ op: () async -> Bool) async -> Bool {
-        if core.needsBackup(bookID: bookID), !bookID.isEmpty {
-            switch backupChoice(bookID: bookID, bookName: bookName) {
-            case .cancel: return false
-            case .proceed: core.markBackedUp(bookID: bookID)
+    /// Offers a CSV backup before the first write to each affected book in this session (several for a move or copy),
+    /// then runs `op`; closes the sheet on success. Nothing is written unless the user chose Back up or Continue.
+    private func write(bookID: String, bookName: String, alsoBook: (id: String, name: String)? = nil,
+                       _ op: () async -> Bool) async -> Bool {
+        var books = [(id: bookID, name: bookName)]
+        if let alsoBook { books.append(alsoBook) }
+        for id in core.booksNeedingBackup(books.map(\.id)) {
+            let name = books.first { $0.id == id }?.name ?? ""
+            switch backupChoice(bookID: id, bookName: name) {
+            case .cancel: backupLog.info("backup prompt: cancelled"); return false
+            case .proceed: core.markBackedUp(bookID: id)
             }
         }
         busy = true
@@ -182,20 +188,35 @@ struct ContactsView: View {
     }
 
     private enum BackupChoice { case proceed, cancel }
+    private let backupLog = Logger(subsystem: "com.aarneaarebye.sipphone", category: "phonebook")
 
+    /// App-modal NSAlert in front of everything. The menu-bar popover (and the sheet inside it) sits at pop-up-menu level,
+    /// above a normal alert, so it is ordered out while the alert is up and brought back afterwards for the pending write.
     private func backupChoice(bookID: String, bookName: String) -> BackupChoice {
+        backupLog.info("backup prompt: shown for book \(bookID, privacy: .public)")
+        let hidden = popoverWindows()
+        hidden.forEach { $0.orderOut(nil) }
+        defer { hidden.forEach { $0.orderFront(nil) } }
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Back up \"\(bookName)\" before changing it?"
         alert.informativeText = "Changes are written to the FRITZ!Box straight away. A CSV file of this phone book lets you restore it by hand. This is asked once per phone book and session."
         alert.addButton(withTitle: "Back up…")
         alert.addButton(withTitle: "Continue without backup")
         alert.addButton(withTitle: "Cancel")
-        switch alert.runModal() {
+        alert.window.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
+        alert.window.center()
+        alert.window.makeKeyAndOrderFront(nil)
+        let result = alert.runModal()
+        let choice: BackupChoice
+        switch result {
         case .alertFirstButtonReturn:
-            return saveCSV(core.contacts(inBook: bookID), fileName: ContactCSV.defaultFileName(book: bookName)) ? .proceed : .cancel
-        case .alertSecondButtonReturn: return .proceed
-        default: return .cancel
+            choice = saveCSV(core.contacts(inBook: bookID), fileName: ContactCSV.defaultFileName(book: bookName), restorePopover: false) ? .proceed : .cancel
+        case .alertSecondButtonReturn: choice = .proceed
+        default: choice = .cancel
         }
+        backupLog.info("backup prompt: result \(choice == .proceed ? "proceed" : "cancel", privacy: .public)")
+        return choice
     }
 
     // MARK: Export
