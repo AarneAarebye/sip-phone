@@ -207,10 +207,7 @@ struct ContactsView: View {
 
     /// Shared by the export button and the backup before the first write. Returns false when cancelled or failed.
     private func saveCSV(_ contacts: [Contact], fileName: String) -> Bool {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = fileName
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        guard let url = chooseCSVSaveURL(fileName: fileName) else { return false }
         do { try ContactCSV.build(contacts).write(to: url, atomically: true, encoding: .utf8); return true }
         catch {
             let fail = NSAlert()

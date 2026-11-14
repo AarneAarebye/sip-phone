@@ -83,10 +83,7 @@ struct HistoryView: View {
         let books = CallLogCSV.phoneBooks(for: rows, contacts: core.contacts,
                                           countryCode: core.settings.countryCode, areaCode: area)
         let csv = CallLogCSV.build(rows, phoneBook: books)
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = CallLogCSV.defaultFileName()
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = chooseCSVSaveURL(fileName: CallLogCSV.defaultFileName()) else { return }
         do { try csv.write(to: url, atomically: true, encoding: .utf8); exportError = nil }
         catch { exportError = "Export failed: \(error.localizedDescription)" }
     }
