@@ -42,6 +42,8 @@ final class ParserTests: XCTestCase {
         XCTAssertNil(calls[1].name)
         XCTAssertEqual(calls[2].remoteNumber, "089 998877")    // outgoing -> Called
         XCTAssertEqual(calls[2].duration, 3600 + 5 * 60)
+        XCTAssertEqual(calls.map(\.ownNumber), ["9876543", "9876543", "9876543"])   // incoming/missed -> Called, outgoing -> Caller
+        XCTAssertEqual(calls[1].duration, 0)
         var cal = Calendar(identifier: .gregorian); cal.timeZone = tz
         let c = cal.dateComponents([.year, .month, .day, .hour, .minute], from: calls[0].date)
         XCTAssertEqual([c.year, c.month, c.day, c.hour, c.minute], [2026, 11, 11, 10, 15])

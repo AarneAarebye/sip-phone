@@ -108,8 +108,12 @@ public struct CallRecord: Equatable, Identifiable, Sendable {
     public let name: String?
     public let date: Date
     public let duration: TimeInterval
-    public init(id: Int, type: CallRecordType, remoteNumber: String, name: String?, date: Date, duration: TimeInterval) {
-        self.id = id; self.type = type; self.remoteNumber = remoteNumber; self.name = name; self.date = date; self.duration = duration
+    /// Own line / number the call used, when the FRITZ!Box call list says so.
+    public let ownNumber: String?
+    public init(id: Int, type: CallRecordType, remoteNumber: String, name: String?, date: Date, duration: TimeInterval,
+                ownNumber: String? = nil) {
+        self.id = id; self.type = type; self.remoteNumber = remoteNumber; self.name = name; self.date = date
+        self.duration = duration; self.ownNumber = ownNumber
     }
 }
 

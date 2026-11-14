@@ -43,11 +43,12 @@ public enum CallListParser {
             guard let code = fields["Type"].flatMap(Int.init) else { return nil }
             let type: CallRecordType
             let remote: String?
+            let own: String?
             switch code {
-            case 1, 9: type = .incoming; remote = fields["Caller"]
-            case 2: type = .missed; remote = fields["Caller"]
-            case 10: type = .rejected; remote = fields["Caller"]
-            case 3, 11: type = .outgoing; remote = fields["Called"]
+            case 1, 9: type = .incoming; remote = fields["Caller"]; own = fields["CalledNumber"] ?? fields["Called"]
+            case 2: type = .missed; remote = fields["Caller"]; own = fields["CalledNumber"] ?? fields["Called"]
+            case 10: type = .rejected; remote = fields["Caller"]; own = fields["CalledNumber"] ?? fields["Called"]
+            case 3, 11: type = .outgoing; remote = fields["Called"]; own = fields["Caller"]
             default: return nil
             }
             guard let date = fields["Date"].flatMap(formatter.date(from:)) else { return nil }
@@ -55,7 +56,8 @@ public enum CallListParser {
             let duration = parts.count == 2 ? TimeInterval(parts[0] * 3600 + parts[1] * 60) : 0
             let name = fields["Name"].flatMap { $0.isEmpty ? nil : $0 }
             return CallRecord(id: Int(fields["Id"] ?? "") ?? records.count, type: type,
-                              remoteNumber: remote ?? "", name: name, date: date, duration: duration)
+                              remoteNumber: remote ?? "", name: name, date: date, duration: duration,
+                              ownNumber: own.flatMap { $0.isEmpty ? nil : $0 })
         }
     }
 }
