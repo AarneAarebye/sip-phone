@@ -27,8 +27,9 @@ struct HistoryView: View {
 
     var body: some View {
         VStack {
-            HStack {
-                TextField("Filter by name or number", text: $query).textFieldStyle(.roundedBorder)
+            TextField("Filter by name or number", text: $query).textFieldStyle(.roundedBorder)
+                .padding(.horizontal, 12)
+            HStack(spacing: 8) {
                 Menu("Period") {
                     ForEach(CallLogRangePreset.allCases, id: \.self) { p in
                         Button(title(p)) { let r = p.range(); from = r.from; to = r.to }
@@ -37,19 +38,25 @@ struct HistoryView: View {
                 Menu("Export") {
                     Button("Export CSV…") { exportCSV() }.disabled(exportRows.isEmpty)
                 }.fixedSize()
-            }.padding(.horizontal, 8)
-            HStack {
-                Toggle("From", isOn: Binding(get: { from != nil }, set: { from = $0 ? Calendar.current.startOfDay(for: Date()) : nil }))
-                if let f = from {
-                    DatePicker("", selection: Binding(get: { f }, set: { from = $0 }), displayedComponents: [.date, .hourAndMinute]).labelsHidden()
-                }
-                Toggle("To", isOn: Binding(get: { to != nil }, set: { to = $0 ? Date() : nil }))
-                if let t = to {
-                    DatePicker("", selection: Binding(get: { t }, set: { to = $0 }), displayedComponents: [.date, .hourAndMinute]).labelsHidden()
-                }
-                Spacer()
+                Spacer(minLength: 0)
                 if filterActive { Button("Clear") { query = ""; from = nil; to = nil } }
-            }.font(.caption).padding(.horizontal, 8)
+            }.padding(.horizontal, 12)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Toggle("From", isOn: Binding(get: { from != nil }, set: { from = $0 ? Calendar.current.startOfDay(for: Date()) : nil }))
+                    Spacer(minLength: 0)
+                    if let f = from {
+                        DatePicker("", selection: Binding(get: { f }, set: { from = $0 }), displayedComponents: [.date, .hourAndMinute]).labelsHidden()
+                    }
+                }
+                HStack {
+                    Toggle("To", isOn: Binding(get: { to != nil }, set: { to = $0 ? Date() : nil }))
+                    Spacer(minLength: 0)
+                    if let t = to {
+                        DatePicker("", selection: Binding(get: { t }, set: { to = $0 }), displayedComponents: [.date, .hourAndMinute]).labelsHidden()
+                    }
+                }
+            }.font(.caption).padding(.horizontal, 12)
             List(filtered, selection: $selection) { r in
                 HStack {
                     Image(systemName: icon(r.type)).foregroundStyle(r.type == .missed ? .red : .secondary)
