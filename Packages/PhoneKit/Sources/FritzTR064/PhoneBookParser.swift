@@ -63,7 +63,8 @@ public enum PhoneBookParser {
             case "number": if !t.isEmpty { numbers.append(PhoneNumber(number: t, type: numberType)) }
             case "contact":
                 inContact = false
-                contacts.append(Contact(id: uid.isEmpty ? String(contacts.count) : uid, name: name, numbers: numbers, phoneBook: bookName))
+                contacts.append(Contact(id: uid.isEmpty ? String(contacts.count) : uid, name: name, numbers: numbers, phoneBook: bookName,
+                                        entryID: uid.isEmpty ? nil : uid))
             default: break
             }
         }

@@ -17,8 +17,14 @@ public struct Contact: Codable, Equatable, Identifiable, Sendable {
     public let phoneBook: String?
     /// FRITZ!Box id of that phone book (nil in older caches; see `bookID`).
     public let phoneBookID: String?
-    public init(id: String, name: String, numbers: [PhoneNumber], phoneBook: String? = nil, phoneBookID: String? = nil) {
+    /// The box's own entry id inside the book (`uniqueid`), needed to edit or delete; nil in older caches.
+    public let entryID: String?
+    /// The book is supplied by an online provider (or otherwise not stored on the box): no edit or delete.
+    public let phoneBookReadOnly: Bool
+    public init(id: String, name: String, numbers: [PhoneNumber], phoneBook: String? = nil, phoneBookID: String? = nil,
+                entryID: String? = nil, phoneBookReadOnly: Bool = false) {
         self.id = id; self.name = name; self.numbers = numbers; self.phoneBook = phoneBook; self.phoneBookID = phoneBookID
+        self.entryID = entryID; self.phoneBookReadOnly = phoneBookReadOnly
     }
 
     /// The effective book id: the stored one, else the all-digit prefix of an "<bookId>-<contactId>" id, else nil.
@@ -30,7 +36,7 @@ public struct Contact: Codable, Equatable, Identifiable, Sendable {
         return !prefix.isEmpty && prefix.allSatisfy(\.isASCII) && prefix.allSatisfy(\.isNumber) ? String(prefix) : nil
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, numbers, phoneBook, phoneBookID }
+    private enum CodingKeys: String, CodingKey { case id, name, numbers, phoneBook, phoneBookID, entryID, phoneBookReadOnly }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
@@ -38,6 +44,8 @@ public struct Contact: Codable, Equatable, Identifiable, Sendable {
         numbers = try c.decode([PhoneNumber].self, forKey: .numbers)
         phoneBook = try c.decodeIfPresent(String.self, forKey: .phoneBook)
         phoneBookID = try c.decodeIfPresent(String.self, forKey: .phoneBookID)
+        entryID = try c.decodeIfPresent(String.self, forKey: .entryID)
+        phoneBookReadOnly = try c.decodeIfPresent(Bool.self, forKey: .phoneBookReadOnly) ?? false
     }
 }
 
@@ -45,7 +53,10 @@ public struct PhoneBookSummary: Equatable, Identifiable, Sendable {
     public let id: String
     public let name: String
     public let contactCount: Int
-    public init(id: String, name: String, contactCount: Int) { self.id = id; self.name = name; self.contactCount = contactCount }
+    public let readOnly: Bool
+    public init(id: String, name: String, contactCount: Int, readOnly: Bool = false) {
+        self.id = id; self.name = name; self.contactCount = contactCount; self.readOnly = readOnly
+    }
 }
 
 public enum PhoneBooks {
@@ -55,13 +66,16 @@ public enum PhoneBooks {
         var order: [String] = []
         var names: [String: String] = [:]
         var counts: [String: Int] = [:]
+        var readOnly = Set<String>()
         for c in contacts {
             guard let id = c.bookID else { continue }
             if counts[id] == nil { order.append(id) }
             counts[id, default: 0] += 1
+            if c.phoneBookReadOnly { readOnly.insert(id) }
             if names[id] == nil, let n = c.phoneBook, !n.isEmpty { names[id] = n }
         }
-        return order.map { PhoneBookSummary(id: $0, name: names[$0] ?? "Phone book \($0)", contactCount: counts[$0] ?? 0) }
+        return order.map { PhoneBookSummary(id: $0, name: names[$0] ?? "Phone book \($0)", contactCount: counts[$0] ?? 0,
+                                           readOnly: readOnly.contains($0)) }
     }
 
     /// Contacts whose book is not disabled (contacts without a book id are always kept).

@@ -212,6 +212,8 @@ grep -q -- "com.apple.developer.system-extension.install" <<<"$APP_ENTS" \
   || die "System Extension install entitlement missing on the app"
 grep -q -- "com.apple.security.device.audio-input" <<<"$APP_ENTS" \
   || die "Audio input entitlement missing on the app"
+grep -q -- "com.apple.security.files.user-selected.read-write" <<<"$APP_ENTS" \
+  || die "User-selected file write entitlement missing on the app (CSV export would fail)"
 
 step "Checking architectures"
 check_archs "app" "$APP/Contents/MacOS/$APP_NAME"
