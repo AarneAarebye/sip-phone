@@ -48,9 +48,10 @@ struct ContactsView: View {
 
     private var content: some View {
         VStack {
-            HStack {
-                TextField("Search or type a number", text: $query).textFieldStyle(.roundedBorder)
-                    .onSubmit { if filtered.isEmpty { Microphone.dial(query, core: core) } }
+            TextField("Search or type a number", text: $query).textFieldStyle(.roundedBorder)
+                .onSubmit { if filtered.isEmpty { Microphone.dial(query, core: core) } }
+                .padding(.horizontal, 12)
+            HStack(spacing: 8) {
                 if enabledBooks.count >= 2 {
                     Menu(bookLabel) {
                         // Toggles, not Buttons: a menu draws the native checkmark for a Toggle, but drops the image of a Button label.
@@ -63,20 +64,23 @@ struct ContactsView: View {
                                 get: { selection?.contains(book.id) == true },
                                 set: { _ in core.setSelectedPhoneBooks(PhoneBooks.toggled(book.id, effective: selection, books: core.phoneBooks)) }))
                         }
-                    }.fixedSize()
+                    }.lineLimit(1).truncationMode(.tail).frame(maxWidth: 190, alignment: .leading).fixedSize(horizontal: true, vertical: false)
                 }
-                Button { exportSelection() } label: { Label("Export CSV…", systemImage: "square.and.arrow.up") }
+                Spacer(minLength: 0)
+                Button { exportSelection() } label: { Image(systemName: "square.and.arrow.up") }
+                    .accessibilityLabel("Export CSV…")
                     .help("Export the contacts of the selected phone books as a CSV file")
                     .disabled(exportContacts.isEmpty)
                 if core.canEditPhoneBooks, !writableBooks.isEmpty {
                     if writableBooks.count == 1, let only = writableBooks.first {
-                        Button { start { sheet = .add(only) } } label: { Label("Add contact", systemImage: "plus") }
+                        Button { start { sheet = .add(only) } } label: { Image(systemName: "plus") }
+                            .accessibilityLabel("Add contact").help("Add contact")
                     } else {
                         Menu { ForEach(writableBooks) { b in Button(b.name) { start { sheet = .add(b) } } } }
-                            label: { Label("Add contact", systemImage: "plus") }.fixedSize()
+                            label: { Image(systemName: "plus") }.menuIndicator(.hidden).accessibilityLabel("Add contact").help("Add contact").fixedSize()
                     }
                 }
-            }.padding(.horizontal, 8)
+            }.padding(.horizontal, 12)
             if let e = core.editError, sheet == nil {
                 Text(e).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
                     .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
