@@ -12,6 +12,10 @@ func chooseCSVSaveURL(fileName: String) -> URL? {
     let panel = NSSavePanel()
     panel.allowedContentTypes = [.commaSeparatedText]
     panel.nameFieldStringValue = fileName
-    panel.level = .modalPanel
+    // The menu-bar popover floats at pop-up-menu level and would cover the panel; sit one level above it.
+    // The popover stays open on purpose: closing it would tear down the view that continues the write flow.
+    panel.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
+    panel.center()
+    panel.makeKeyAndOrderFront(nil)
     return panel.runModal() == .OK ? panel.url : nil
 }
