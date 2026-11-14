@@ -191,12 +191,13 @@ struct ContactsView: View {
     private let backupLog = Logger(subsystem: "com.aarneaarebye.sipphone", category: "phonebook")
 
     /// App-modal NSAlert in front of everything. The menu-bar popover (and the sheet inside it) sits at pop-up-menu level,
-    /// above a normal alert, so it is ordered out while the alert is up and brought back afterwards for the pending write.
+    /// above a normal alert, so it is made invisible (alpha 0, not ordered out) while the alert is up; it stays managed by the MenuBarExtra.
     private func backupChoice(bookID: String, bookName: String) -> BackupChoice {
         backupLog.info("backup prompt: shown for book \(bookID, privacy: .public)")
-        let hidden = popoverWindows()
-        hidden.forEach { $0.orderOut(nil) }
-        defer { hidden.forEach { $0.orderFront(nil) } }
+        return withPopoverHidden { runBackupAlert(bookID: bookID, bookName: bookName) }
+    }
+
+    private func runBackupAlert(bookID: String, bookName: String) -> BackupChoice {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Back up \"\(bookName)\" before changing it?"
